@@ -211,3 +211,24 @@ h1 { font-size: clamp(32px, 4.6vw, 48px); line-height: 1.14; letter-spacing: -.0
   .sidebar nav a { font-size: 11px; }
   .sidebar nav a svg { display: none; }
 }
+
+.side-note { flex-wrap: wrap; gap: 2px 5px; }
+.side-note .account-label { width: 100%; overflow-wrap: anywhere; color: var(--ink); }
+.side-note .button { font-size: 12px; min-height: 35px; padding: 5px 7px; }
+.login-panel { min-height: 335px; }
+.login-panel h2 { font-size: clamp(31px, 4.5vw, 55px); }
+.login-panel p { max-width: 34ch; }
+.empty-panel { padding: 25px; }
+.empty-panel p { margin: 5px 0 14px; color: var(--muted); }
+.feed-status { padding: 9px 0; }
+.more-posts { margin-top: 14px; }
+.dialog-error { color: #943322; font-size: 13px; }
+.dialog-error:empty { display: none; }
+.button:disabled { opacity: .55; cursor: wait; }
+
+@media (max-width: 740px) {
+  .side-note { display: flex; align-items: center; padding: 4px 0 0; }
+  .side-note .account-label { width: auto; margin-right: auto; }
+  .side-note:has(> .muted) { display: none; }
+  .login-panel { min-height: 240px; }
+}

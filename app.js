@@ -2,7 +2,6 @@
 
 const regions = ['港岛', '九龙', '新界'];
 const petKinds = {dog: ['狗狗', '🐶'], cat: ['猫咪', '🐱'], other: ['其他宠物', '🐾']};
-const demoPet = {id: 'demo', name: '布丁', kind: 'dog', breed: '威尔士柯基犬'};
 const topics = {daily: '晒宠日常', help: '养宠互助', walk: '遛宠路线'};
 const types = {
   weight: {label: '体重', icon: 'scale', color: 'peach'},
@@ -16,68 +15,163 @@ const walks = {
   九龙: {title: '找一块有树荫的草地', detail: '挑个凉快的时段，带上水和牵引绳，找一处可以休息的地方。', scene: 'park'},
   新界: {title: '换一条没走过的小路', detail: '选一条安静、好折返的路线，跟着毛孩子的步子走。', scene: 'hill'},
 };
-const friends = [
-  {name: '可乐爸', pet: '可乐 · 柴犬', region: '港岛', emoji: '🐕', color: 'peach', bio: '周末常去中西区海滨散步。'},
-  {name: '栗子妈', pet: '栗子 · 英短', region: '港岛', emoji: '🐈', color: 'sage', bio: '在找适合室内猫的益智玩具。'},
-  {name: '豆包姐姐', pet: '豆包 · 贵宾', region: '九龙', emoji: '🐩', color: 'lilac', bio: '偶尔在西九遛狗，欢迎交流梳毛心得。'},
-  {name: '三花同学', pet: '三花 · 唐猫', region: '九龙', emoji: '🐱', color: 'peach', bio: '三花最喜欢坐窗边看鸟。'},
-  {name: '糯米爸', pet: '糯米 · 金毛', region: '新界', emoji: '🦮', color: 'sage', bio: '喜欢带糯米在大埔散步。'},
-  {name: 'Momo 妈', pet: 'Momo · 比熊', region: '新界', emoji: '🐶', color: 'lilac', bio: '正在练习出门前乖乖等牵引绳。'},
-];
-const seedRecords = [
-  {id: 'seed-w1', type: 'weight', date: '2026-09-12', value: '8.2', note: ''},
-  {id: 'seed-w2', type: 'weight', date: '2026-10-01', value: '8.4', note: ''},
-  {id: 'seed-w3', type: 'weight', date: '2026-10-18', value: '8.7', note: ''},
-  {id: 'seed-v1', type: 'vaccine', date: '2026-10-22', value: '年度联苗', note: '已完成本年度接种。'},
-  {id: 'seed-c1', type: 'care', date: '2026-10-29', value: '体内外驱虫', note: '已记录本次驱虫。', nextDate: '2026-11-29'},
-  {id: 'seed-w4', type: 'weight', date: '2026-11-06', value: '8.9', note: '早饭前称重。'},
-  {id: 'seed-m1', type: 'moment', date: '2026-11-04', value: '把落叶带回家', note: '散步时捡到一片大叶子。'},
-  {id: 'seed-m2', type: 'moment', date: '2026-11-08', value: '在窗边晒太阳', note: '趴了半个下午，耳朵都晒暖了。'},
-];
-const seedPosts = [
-  {id: 'seed-p4', author: '栗子妈', emoji: '🐈', color: 'sage', region: '港岛', topic: 'help', date: '2026-11-08', text: '栗子很快就玩腻了逗猫棒。你们有没有试过用纸箱做猫咪玩具？', likes: 2},
-  {id: 'seed-p5', author: '三花同学', emoji: '🐱', color: 'peach', region: '九龙', topic: 'help', date: '2026-11-07', text: '下周要带三花出门。你们平时怎么让猫熟悉航空箱？', likes: 5},
-  {id: 'seed-p6', author: '可乐爸', emoji: '🐕', color: 'peach', region: '港岛', topic: 'walk', date: '2026-11-06', text: '带可乐走海边时，我会留一段时间让它自己挑方向。想收集一些比较安静、容易折返的路线。', likes: 3},
-  {id: 'seed-p7', author: 'Momo 妈', emoji: '🐶', color: 'lilac', region: '新界', topic: 'help', date: '2026-11-06', text: '每次拿起牵引绳，Momo 就在门口转圈。有宠友愿意分享出门前的训练方法吗？', likes: 3},
-  {id: 'seed-p1', author: '可乐爸', emoji: '🐕', color: 'peach', region: '港岛', date: '2026-11-08', text: '今天在海滨捡到一片比可乐耳朵还大的叶子。它一路叼回家，谁也不肯给。', likes: 4},
-  {id: 'seed-p2', author: '豆包姐姐', emoji: '🐩', color: 'lilac', region: '九龙', date: '2026-11-07', text: '最近把梳毛拆成了两分钟一次，豆包终于愿意趴下等我梳完一边了。', likes: 3},
-  {id: 'seed-p3', topic: 'walk', author: '糯米爸', emoji: '🦮', color: 'sage', region: '新界', date: '2026-11-06', text: '今天试了大埔的新路线。糯米闻得太认真，走了半小时还没走出第一条街。', likes: 6},
-];
-const storageKey = 'pawprint.demo.v1';
+const legacyKey = 'pawprint.demo.v1';
+const cloud = window.pawCloud;
+const providerNames = {github: 'GitHub', google: 'Google'};
+
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#dialog');
 const notice = document.querySelector('#notice');
-const recapDog = new Image();
-recapDog.src = './corgi.svg';
 let timelineFilter = 'all';
 let topicFilter = 'all';
 let toastTimer;
 let focusAfterClose;
-let state = {
-  records: [], posts: [], likes: [], savedWalks: [], replies: [], pets: [], activePet: demoPet.id, region: '港岛',
-};
+let user = null;
+let account = null;
+let loadingAccount = true;
+let accountError = '';
+let feedError = '';
+let loadingFeed = false;
+let morePosts = false;
+let requestNumber = 0;
+let sessionNumber = 0;
+let saving = false;
+const emptyState = () => ({records: [], posts: [], likes: [], savedWalks: [], pets: [], activePet: null, region: null});
+let state = emptyState();
+let legacy = null;
 try {
-  const saved = JSON.parse(localStorage.getItem(storageKey));
-  if (saved && Array.isArray(saved.records) && Array.isArray(saved.posts) && Array.isArray(saved.likes)) {
-    state = {
-      ...state,
-      ...saved,
-      region: regions.includes(saved.region) ? saved.region : '港岛',
-      pets: Array.isArray(saved.pets) ? saved.pets : [],
-      replies: Array.isArray(saved.replies) ? saved.replies : [],
-      savedWalks: Array.isArray(saved.savedWalks) ? saved.savedWalks.filter(region => regions.includes(region)) : [],
-    };
-  }
+  legacy = JSON.parse(localStorage.getItem(legacyKey));
 } catch {
-  // The demo can still run for this visit when browser storage is unavailable.
+  // Private cloud records do not depend on local storage.
 }
 
-function save() {
+function localPetImport() {
+  if (!legacy || !Array.isArray(legacy.records)) return {pets: [], records: []};
+  const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+  const pets = (Array.isArray(legacy.pets) ? legacy.pets : []).filter(pet =>
+    uuid.test(pet.id) && Object.hasOwn(petKinds, pet.kind) && typeof pet.name === 'string');
+  const ids = new Set(pets.map(pet => pet.id));
+  const records = legacy.records.filter(record => uuid.test(record.id) && Object.hasOwn(types, record.type)
+    && (ids.has(record.petId) || !record.petId || record.petId === 'demo'));
+  if (records.some(record => !record.petId || record.petId === 'demo')) {
+    pets.push({id: user.id, name: '布丁', kind: 'dog', breed: '威尔士柯基犬'});
+  }
+  return {
+    pets: pets.map(({id, name, kind, breed}) => ({id, name, kind, breed: breed || ''})),
+    records: records.map(record => ({
+      id: record.id, pet_id: ids.has(record.petId) ? record.petId : user.id,
+      type: record.type, value: record.type === 'weight' ? String(Number(record.value)) : record.value,
+      note: record.note || '', record_date: record.date, next_date: record.nextDate || null,
+    })),
+  };
+}
+
+function importPending() {
+  if (!user) return false;
+  const local = localPetImport();
+  return local.pets.some(pet => !state.pets.some(item => item.id === pet.id))
+    || local.records.some(record => !state.records.some(item => item.id === record.id));
+}
+
+function readRecord(record) {
+  return {id: record.id, petId: record.pet_id, type: record.type, value: record.value,
+    note: record.note, date: record.record_date, nextDate: record.next_date};
+}
+
+async function loadPrivate(expected) {
+  const [pets, records] = await Promise.all([cloud.pets(), cloud.records()]);
+  if (expected !== sessionNumber) return;
+  state.pets = pets;
+  state.records = records.map(readRecord);
+  if (!pets.some(pet => pet.id === state.activePet)) state.activePet = pets[0]?.id ?? null;
+}
+
+function readPost(post) {
+  return {
+    ...post,
+    author: post.display_name,
+    text: post.body,
+    date: today(new Date(post.created_at)),
+    likes: post.paw_likes[0]?.count ?? 0,
+    replies: post.paw_comments[0]?.count ?? 0,
+  };
+}
+
+async function loadFeed({append = false, quiet = false} = {}) {
+  if (!account) return;
+  const request = ++requestNumber;
+  const cursor = append ? state.posts.at(-1) : null;
+  loadingFeed = true;
+  let needsRender = !quiet;
+  if (!quiet) {
+    feedError = '';
+    render();
+  }
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state));
-    return true;
+    const result = await cloud.posts(state.region, topicFilter, cursor, user.id);
+    if (request !== requestNumber) return;
+    const posts = result.posts.map(readPost);
+    const previous = append ? state.posts : [];
+    const likes = append ? [...state.likes, ...result.likes] : result.likes;
+    const changed = JSON.stringify([previous.concat(posts), likes]) !== JSON.stringify([state.posts, state.likes]);
+    state.posts = previous.concat(posts);
+    state.likes = likes;
+    morePosts = result.posts.length === 30;
+    const recovered = Boolean(feedError);
+    feedError = '';
+    needsRender ||= changed || recovered;
   } catch {
-    return false;
+    if (request !== requestNumber) return;
+    feedError = '社区暂时无法更新，请稍后重试。';
+    needsRender = true;
+  } finally {
+    if (request === requestNumber) {
+      loadingFeed = false;
+      if (needsRender) render();
+    }
+  }
+}
+
+async function loadAccount(session) {
+  const expected = ++sessionNumber;
+  ++requestNumber;
+  user = session?.user ?? null;
+  account = null;
+  accountError = '';
+  feedError = '';
+  state = emptyState();
+  morePosts = false;
+  loadingFeed = false;
+  loadingAccount = Boolean(user);
+  if (dialog.open) dialog.close();
+  render();
+  try {
+    if (!user) return;
+    const profile = await cloud.profile();
+    if (expected !== sessionNumber || !profile) return;
+    account = profile;
+    state.region = profile.region;
+    state.savedWalks = profile.saved_walks;
+    await loadPrivate(expected);
+  } catch {
+    if (expected === sessionNumber) accountError = '暂时无法读取云端资料，请重试。';
+  } finally {
+    if (expected === sessionNumber) {
+      loadingAccount = false;
+      render();
+      if (account && !accountError && location.hash === '#community') void loadFeed();
+    }
+  }
+}
+
+async function startSession() {
+  try {
+    const session = await cloud.getSession();
+    await loadAccount(session);
+  } catch {
+    loadingAccount = false;
+    accountError = '暂时无法连接登录服务，请重试。';
+    render();
   }
 }
 
@@ -99,23 +193,17 @@ function dateLabel(date) {
 }
 
 function activePet() {
-  return state.pets.find(pet => pet.id === state.activePet) ?? demoPet;
+  return state.pets.find(pet => pet.id === state.activePet);
 }
 
 function petPicker() {
   const selected = activePet();
-  const options = [demoPet, ...state.pets].map(pet => `<option value="${pet.id}"${pet.id === selected.id ? ' selected' : ''}>${escapeHtml(pet.name)}${pet.id === demoPet.id ? '（示例）' : ''}</option>`).join('');
-  return `<section class="pet-picker"><label>当前宠物<select id="active-pet">${options}</select></label><button class="button outline" data-action="add-pet">${icon('plus')}添加宠物</button>${selected.id !== demoPet.id ? '<button class="button quiet" data-action="edit-pet">编辑档案</button>' : ''}</section>`;
-}
-
-function ownRecords() {
-  const id = activePet().id;
-  return state.records.filter(record => (record.petId ?? demoPet.id) === id);
+  const options = state.pets.map(pet => `<option value="${pet.id}"${pet.id === selected?.id ? ' selected' : ''}>${escapeHtml(pet.name)}</option>`).join('');
+  return `<section class="pet-picker">${selected ? `<label>当前宠物<select id="active-pet">${options}</select></label>` : ''}<button class="button outline" data-action="add-pet">${icon('plus')}添加宠物</button>${selected ? '<button class="button quiet" data-action="edit-pet">编辑档案</button>' : ''}</section>`;
 }
 
 function records() {
-  const examples = activePet().id === demoPet.id ? seedRecords : [];
-  return [...ownRecords(), ...examples].sort((first, second) => second.date.localeCompare(first.date));
+  return state.records.filter(record => record.petId === state.activePet);
 }
 
 function recordTitle(record) {
@@ -132,7 +220,7 @@ function button(label, action, symbol = 'plus') {
 
 function entry(record, canShare = false) {
   const type = types[record.type];
-  return `<article class="entry"><span class="tile-icon ${type.color}">${icon(type.icon)}</span><div class="entry-text"><span class="entry-meta">${type.label} · ${dateLabel(record.date)}${record.id.startsWith('seed-') ? ' · 示例' : ''}</span><h3>${escapeHtml(recordTitle(record))}</h3>${record.note ? `<p>${escapeHtml(record.note)}</p>` : ''}</div>${canShare ? `<button class="button quiet share" data-action="share" data-id="${record.id}" aria-label="分享${type.label}记录">${icon('share')}<span>分享</span></button>` : ''}</article>`;
+  return `<article class="entry"><span class="tile-icon ${type.color}">${icon(type.icon)}</span><div class="entry-text"><span class="entry-meta">${type.label} · ${dateLabel(record.date)}</span><h3>${escapeHtml(recordTitle(record))}</h3>${record.note ? `<p>${escapeHtml(record.note)}</p>` : ''}</div>${canShare ? `<button class="button quiet share" data-action="share" data-id="${record.id}" aria-label="分享${type.label}记录">${icon('share')}<span>分享</span></button>` : ''}</article>`;
 }
 
 function periodEnding(end, days) {
@@ -144,17 +232,9 @@ function periodEnding(end, days) {
 function recapData(days) {
   const end = today();
   const start = periodEnding(end, days);
-  const own = ownRecords().filter(record => record.date >= start && record.date <= end);
-  const example = own.length === 0 && activePet().id === demoPet.id;
-  const demoEnd = '2026-11-09';
-  const demoStart = periodEnding(demoEnd, days);
-  const items = example ? seedRecords.filter(record => record.date >= demoStart && record.date <= demoEnd) : own;
+  const items = records().filter(record => record.date >= start && record.date <= end);
   return {
-    example,
-    start: example ? demoStart : start,
-    end: example ? demoEnd : end,
-    total: items.length,
-    dates: new Set(items.map(record => record.date)).size,
+    start, end, total: items.length, dates: new Set(items.map(record => record.date)).size,
     moments: items.filter(record => record.type === 'moment').length,
   };
 }
@@ -165,7 +245,7 @@ function recapTile() {
     <div class="recap-copy">
       <p class="eyebrow">${icon('spark')} GROWTH RECAP</p>
       <h2>${escapeHtml(activePet().name)}的成长回顾</h2>
-      <p>7 天 · ${data.total} 笔记录 · ${data.example ? '示例' : '本机记录'}</p>
+      <p>最近 7 天 · ${data.total} 笔记录</p>
       <button class="button recap-button" data-action="recap">查看回顾卡${icon('arrow')}</button>
     </div>
     <span class="recap-stamp" aria-hidden="true">${icon('paw')}</span>
@@ -191,9 +271,7 @@ function updateRecap() {
   const period = `${data.start.replaceAll('-', '.')} — ${data.end.replaceAll('-', '.')}`;
   const pet = activePet();
   canvas.setAttribute('aria-label', `${pet.name}的成长回顾。最近 ${days} 天，${data.total} 笔记录、${data.dates} 天有记录、${data.moments} 个日常。日期 ${period}`);
-  dialog.querySelector('#recap-source').textContent = data.example
-    ? '所选时段暂无本机记录，当前显示示例卡。'
-    : '回顾卡使用此浏览器的记录，只展示日期和次数。';
+  dialog.querySelector('#recap-source').textContent = '下载的回顾卡含宠物名字、日期和记录次数。';
   if (!context) return;
 
   const ink = '#231f37';
@@ -224,13 +302,9 @@ function updateRecap() {
   context.fillText(`${pet.name}的`, 46, 161, 625);
   context.restore();
   font('成长回顾', 46, 247, 82, lavender, 800);
-  font(`最近 ${days} 天 · ${data.example ? '示例记录' : '本机记录'}`, 49, 303, 25, yellow);
+  font(`最近 ${days} 天`, 49, 303, 25, yellow);
   font(period, 49, 342, 20, cream, 500);
-  if (pet.id === demoPet.id && recapDog.complete && recapDog.naturalWidth) {
-    context.drawImage(recapDog, 250, 264, 440, 293);
-  } else {
-    font(petKinds[pet.kind][1], 475, 500, 133, cream);
-  }
+  font(petKinds[pet.kind][1], 475, 500, 133, cream);
   const stats = [[data.total, '笔记录'], [data.dates, '天有记录'], [data.moments, '个日常']];
   stats.forEach(([value, label], index) => {
     const x = 48 + index * 210;
@@ -255,8 +329,6 @@ function updateRecap() {
   }
 }
 
-recapDog.addEventListener('load', updateRecap);
-
 function carePlan(all) {
   const seen = new Set();
   const plans = all.filter(record => {
@@ -269,13 +341,14 @@ function carePlan(all) {
   return `<section class="section"><div class="section-title"><h2>护理待办</h2><span class="muted">根据记录里的下次日期</span></div>
     <div class="card entries">${plans.length ? plans.map(record => {
       const due = record.nextDate <= today();
-      return `<article class="entry"><span class="tile-icon ${due ? 'rose' : 'sage'}">${icon('clock')}</span><div class="entry-text"><span class="entry-meta">${dateLabel(record.nextDate)} · ${due ? '已到期' : '待办'}${record.id.startsWith('seed-') ? ' · 示例' : ''}</span><h3>${escapeHtml(record.value)}</h3></div><button class="button outline" data-action="complete-plan" data-id="${record.id}">记完成</button></article>`;
+      return `<article class="entry"><span class="tile-icon ${due ? 'rose' : 'sage'}">${icon('clock')}</span><div class="entry-text"><span class="entry-meta">${dateLabel(record.nextDate)} · ${due ? '已到期' : '待办'}</span><h3>${escapeHtml(record.value)}</h3></div><button class="button outline" data-action="complete-plan" data-id="${record.id}">记完成</button></article>`;
     }).join('') : '<p class="empty">在疫苗、驱虫或就诊记录里填写「下次日期」，这里就会显示待办。</p>'}</div></section>`;
 }
 
 function profile() {
   const pet = activePet();
-  const example = pet.id === demoPet.id;
+  if (!pet) return `${header('MY PET · 01', '宠物档案', '给家里的伙伴建一份成长档案。')}
+    <div class="card empty-panel"><h2>添加第一只宠物</h2><p>称重、护理待办和日常都会归到它的档案。</p>${button('添加宠物', 'add-pet')}</div>`;
   const all = records();
   const stats = Object.entries(types).filter(([key]) => key !== 'moment').map(([key, type]) => {
     const last = all.find(record => record.type === key);
@@ -287,12 +360,12 @@ function profile() {
     <div class="profile-feature">
       <section class="hero" aria-label="${escapeHtml(pet.name)}的宠物档案">
         <div class="hero-copy">
-          <span class="pill hero-label">${icon('paw')} ${example ? '示例宠物' : '我的宠物'}</span>
-          <h2>${escapeHtml(pet.name)}<span>${example ? 'PUDDING' : 'MY PET'}</span></h2>
-          <p>${escapeHtml(pet.breed || petKinds[pet.kind][0])}${example ? ' <span>·</span> 2 岁 <span>·</span> 男孩' : ''}</p>
+          <span class="pill hero-label">${icon('paw')} 我的宠物</span>
+          <h2>${escapeHtml(pet.name)}<span>MY PET</span></h2>
+          <p>${escapeHtml(pet.breed || petKinds[pet.kind][0])}</p>
           <div class="hero-actions">${button('记一笔', 'record')}<button class="button hero-secondary" data-action="moment">${icon('heart')}记日常</button></div>
         </div>
-        ${example ? '<img src="./corgi.svg" alt="戴着绿色项圈的柯基布丁">' : `<span class="pet-avatar" aria-hidden="true">${petKinds[pet.kind][1]}</span>`}
+        <span class="pet-avatar" aria-hidden="true">${petKinds[pet.kind][1]}</span>
       </section>
       ${recapTile()}
     </div>
@@ -321,6 +394,8 @@ function chart(weights) {
 }
 
 function timeline() {
+  if (!activePet()) return `${header('GROWTH JOURNAL · 02', '成长时间线', '记录会按宠物和日期整理。')}
+    <div class="card empty-panel"><h2>先添加一只宠物</h2>${button('添加宠物', 'add-pet')}</div>`;
   const all = records();
   const filtered = timelineFilter === 'all' ? all : all.filter(record => record.type === timelineFilter);
   const filters = [['all', '全部'], ...Object.entries(types).map(([key, type]) => [key, type.label])];
@@ -331,10 +406,13 @@ function timeline() {
 }
 
 function postCard(post) {
-  const own = post.author === '我';
   const liked = state.likes.includes(post.id);
-  const count = state.replies.filter(reply => reply.postId === post.id).length;
-  return `<article class="card post"><div class="post-head"><span class="avatar ${post.color}" aria-hidden="true">${post.emoji}</span><div><h3>${post.author}</h3><p>${post.region} · ${dateLabel(post.date)}${own ? ' · 本机动态' : ' · 示例'}</p></div><span class="post-topic">${topics[post.topic ?? 'daily']}</span></div><p class="post-body">${escapeHtml(post.text)}</p><div class="post-actions"><button class="button quiet like" data-action="like" data-id="${post.id}" aria-label="${liked ? '取消点赞' : '点赞'}" aria-pressed="${liked}">${icon('heart')}${post.likes + Number(liked)}</button><button class="button quiet" data-action="reply" data-id="${post.id}">${icon('chat')}评论 ${count}</button></div></article>`;
+  const author = post.author_id === user.id ? `${post.author}（我）` : post.author;
+  return `<article class="card post">
+    <div class="post-head"><span class="avatar peach">${escapeHtml(Array.from(post.author)[0])}</span><div><h3>${escapeHtml(author)}</h3><p>${post.region} · ${dateLabel(post.date)}</p></div><span class="post-topic">${topics[post.topic]}</span></div>
+    <p class="post-body">${escapeHtml(post.text)}</p>
+    <div class="post-actions"><button class="button quiet like" data-action="like" data-id="${post.id}" aria-label="${liked ? '取消点赞' : '点赞'}" aria-pressed="${liked}">${icon('heart')}${post.likes}</button><button class="button quiet" data-action="reply" data-id="${post.id}">${icon('chat')}评论 ${post.replies}</button></div>
+  </article>`;
 }
 
 function walkCard() {
@@ -342,11 +420,11 @@ function walkCard() {
   const saved = state.savedWalks.includes(state.region);
   return `<section class="walk-card ${walk.scene}" aria-label="散步灵感">
     <div class="walk-copy">
-      <p class="eyebrow">${icon('pin')} ${state.region} · 散步灵感 · 示例</p>
+      <p class="eyebrow">${icon('pin')} ${state.region} · 散步灵感</p>
       <h2>${walk.title}</h2><p>${walk.detail}</p>
       <div class="walk-actions">
         <button class="button walk-save" data-action="save-walk" aria-pressed="${saved}">${icon(saved ? 'check' : 'bookmark')}${saved ? '已收藏' : '收藏灵感'}</button>
-        <button class="button quiet" data-action="log-walk">${icon('plus')}记一次散步</button>
+        ${activePet() ? `<button class="button quiet" data-action="log-walk">${icon('plus')}记一次散步</button>` : ''}
       </div>
     </div>
     <svg class="walk-art" viewBox="0 0 180 120" aria-hidden="true"><path d="M-8 106C27 42 58 105 88 71c27-31 47-41 96-41v92H-8Z" fill="currentColor" opacity=".24"/><circle cx="128" cy="32" r="14" fill="#f6d593"/><path d="M-5 111c40-38 66 10 106-17 21-14 39-34 79-24" stroke="#fffdf4" stroke-width="3" stroke-dasharray="5 8" fill="none"/><path d="M39 77V50m0 14-11-9m11 6 11-10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><circle cx="39" cy="44" r="15" fill="currentColor" opacity=".38"/></svg>
@@ -354,21 +432,44 @@ function walkCard() {
 }
 
 function community() {
-  const nearby = friends.filter(friend => friend.region === state.region);
-  const feed = [...state.posts, ...seedPosts].filter(post => post.region === state.region && (topicFilter === 'all' || (post.topic ?? 'daily') === topicFilter));
   const filters = [['all', '全部'], ...Object.entries(topics)];
-  return `${header('PET NEIGHBOURS · 03', '同城社区', '看看同区宠友的日常，或问问大家怎么养宠。', button('发动态', 'post'))}
-    <section class="region-panel" aria-label="选择社区区域"><div class="region-copy"><span class="tile-icon sage">${icon('pin')}</span><div><h2>我的地区</h2><p>选择区域查看同区的示例宠友和动态</p></div></div><div class="chips" aria-label="社区区域">${regions.map(region => `<button class="chip" data-region="${region}" aria-pressed="${state.region === region}">${region}</button>`).join('')}</div></section>
+  const feed = state.posts;
+  const status = feedError || (loadingFeed && !feed.length ? '正在读取动态…' : '');
+  return `${header('PET NEIGHBOURS · 03', '同城社区', '和同区宠友交流日常、养宠经验与散步路线。', button('发动态', 'post'))}
+    <section class="region-panel" aria-label="选择社区区域">
+      <div class="region-copy"><span class="tile-icon sage">${icon('pin')}</span><div><h2>我的地区</h2><p>此处显示你选定地区的动态和评论。</p></div></div>
+      <div class="chips" aria-label="社区区域">${regions.map(region => `<button class="chip" data-region="${region}" aria-pressed="${state.region === region}">${region}</button>`).join('')}</div>
+    </section>
     ${walkCard()}
-    <section class="section"><div class="section-title"><h2>${state.region}宠友</h2><span class="muted">${nearby.length} 位示例宠友</span></div><div class="friend-grid">${nearby.map(friend => `<article class="card friend"><span class="avatar ${friend.color}" aria-hidden="true">${friend.emoji}</span><div><h3>${friend.name}</h3><p>${friend.pet}</p><p>${friend.bio}</p></div></article>`).join('')}</div></section>
-    <section class="section"><div class="section-title"><h2>${state.region}动态</h2><span class="muted">${feed.length} 条</span></div><div class="chips" aria-label="动态话题">${filters.map(([key, title]) => `<button class="chip" data-topic="${key}" aria-pressed="${key === topicFilter}">${title}</button>`).join('')}</div><div class="feed">${feed.length ? feed.map(postCard).join('') : '<div class="card entries"><p class="empty">这个地区还没有这类动态，可以发一条。</p></div>'}</div></section>`;
+    <section class="section"><div class="section-title"><h2>${state.region}动态</h2><button class="button quiet" data-action="refresh-feed">${icon('clock')}刷新动态</button></div>
+      <div class="chips" aria-label="动态话题">${filters.map(([key, title]) => `<button class="chip" data-topic="${key}" aria-pressed="${key === topicFilter}">${title}</button>`).join('')}</div>
+      ${status ? `<p class="feed-status muted" role="status">${status}</p>` : ''}
+      <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? '<div class="card entries"><p class="empty">这里还没有动态。发一条和同区宠友打个招呼吧。</p></div>' : '')}</div>
+      ${morePosts ? '<button class="button outline more-posts" data-action="more-posts">加载更早的动态</button>' : ''}
+    </section>`;
+}
+
+function accountPage() {
+  const status = loadingAccount ? '正在连接账号…' : accountError;
+  const localFile = location.protocol === 'file:';
+  const providers = cloud.providers.map(provider => `<button class="button primary" data-action="sign-in" data-provider="${provider}">使用 ${providerNames[provider]} 登录</button>`).join('');
+  return `${header('PAWPRINT JOURNAL', '爪印日记', '给宠物留一份成长记录，也认识同区的宠友。')}
+    <section class="hero login-panel"><div class="hero-copy">
+      <span class="pill hero-label">${icon('paw')} 爪印日记</span>
+      <h2>${user && !status ? '设置个人资料' : '欢迎回来'}</h2>
+      <p>${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '选一个昵称和地区，就可以开始记录和交流。' : '登录后，在不同设备查看你的宠物档案和同区动态。'))}</p>
+      <div class="hero-actions">${localFile ? '<a class="button primary" href="https://lisayinyy.github.io/pawprint/">打开网页版</a>' : loadingAccount ? '' : accountError ? '<button class="button outline" data-action="retry-account">重试</button>' : user ? button('设置昵称和地区', 'account') : providers}</div>
+    </div><img src="./corgi.svg" alt=""></section>`;
 }
 
 const pages = {profile, timeline, community};
 function render({focus = false} = {}) {
   const key = location.hash.slice(1);
   const page = Object.hasOwn(pages, key) ? key : 'profile';
-  main.innerHTML = pages[page]();
+  main.innerHTML = account && !loadingAccount && !accountError ? pages[page]() : accountPage();
+  document.querySelector('#account-slot').innerHTML = user
+    ? `<div class="account-label">${escapeHtml(account?.display_name || '已登录')}</div>${account ? '<button class="button quiet" data-action="account">账号设置</button>' : ''}<button class="button quiet" data-action="sign-out">退出登录</button>`
+    : '<span class="muted">成长档案与同区社区</span>';
   document.querySelectorAll('[data-page]').forEach(link => {
     if (link.dataset.page === page) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -391,7 +492,7 @@ function openDialog(title, fields, submit, trigger, isDownload = false) {
   const primary = isDownload
     ? `<a id="recap-download" class="button primary" hidden>${icon('download')}${submit}</a>`
     : `<button class="button primary" type="submit">${submit}</button>`;
-  dialog.innerHTML = `<form id="editor"><div class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="button quiet close" type="button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${fields}<div class="dialog-actions"><button class="button quiet" type="button" data-action="close">取消</button>${primary}</div></form>`;
+  dialog.innerHTML = `<form id="editor"><div class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="button quiet close" type="button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${fields}<p id="dialog-error" class="dialog-error" role="alert"></p><div class="dialog-actions"><button class="button quiet" type="button" data-action="close">取消</button>${primary}</div></form>`;
   dialog.showModal();
 }
 
@@ -411,49 +512,141 @@ function openRecord(trigger, selected = 'weight', title = '') {
 function openPost(trigger, record) {
   const draft = record ? `${activePet().name}的${types[record.type].label}记录：${recordTitle(record)}。` : '';
   const topic = record || topicFilter === 'all' ? 'daily' : topicFilter;
-  openDialog(record ? '分享成长记录' : '发布动态', `<input name="mode" type="hidden" value="post"><div class="form-row"><label>发布区域<select name="region">${regions.map(region => `<option${state.region === region ? ' selected' : ''}>${region}</option>`).join('')}</select></label><label>话题<select name="topic">${Object.entries(topics).map(([key, title]) => `<option value="${key}"${key === topic ? ' selected' : ''}>${title}</option>`).join('')}</select></label></div><label>动态内容<textarea name="text" rows="4" maxlength="280" placeholder="想分享哪件养宠小事？" required>${escapeHtml(draft)}</textarea></label><p class="muted">内容仅在此浏览器的社区演示中显示。</p>`, '发布动态', trigger);
+  openDialog(record ? '分享成长记录' : '发布动态', `
+    <input name="mode" type="hidden" value="post">
+    <label>话题<select name="topic">${Object.entries(topics).map(([key, title]) => `<option value="${key}"${key === topic ? ' selected' : ''}>${title}</option>`).join('')}</select></label>
+    <label>动态内容<textarea name="text" rows="4" maxlength="280" placeholder="想分享哪件养宠小事？" required>${escapeHtml(draft)}</textarea></label>
+    <p class="muted">你的昵称和这条动态会显示给${state.region}的已登录宠友。</p>`, '发布动态', trigger);
 }
 
 function openPet(trigger, pet) {
   const options = Object.entries(petKinds).map(([key, [title]]) => `<option value="${key}"${key === pet?.kind ? ' selected' : ''}>${title}</option>`).join('');
-  openDialog(pet ? '编辑宠物档案' : '添加宠物', `<input name="mode" type="hidden" value="pet"><input name="petId" type="hidden" value="${pet?.id ?? ''}"><label>宠物名字<input name="name" maxlength="16" required value="${escapeHtml(pet?.name ?? '')}"></label><div class="form-row"><label>宠物类型<select name="kind">${options}</select></label><label>品种（选填）<input name="breed" maxlength="24" value="${escapeHtml(pet?.breed ?? '')}"></label></div>`, '保存档案', trigger);
+  openDialog(pet ? '编辑宠物档案' : '添加宠物', `
+    <input name="mode" type="hidden" value="pet"><input name="petId" type="hidden" value="${pet?.id ?? ''}">
+    <label>宠物名字<input name="name" maxlength="16" required value="${escapeHtml(pet?.name ?? '')}"></label>
+    <div class="form-row"><label>宠物类型<select name="kind">${options}</select></label><label>品种（选填）<input name="breed" maxlength="24" value="${escapeHtml(pet?.breed ?? '')}"></label></div>`, '保存档案', trigger);
 }
 
-function openReplies(trigger, postId) {
-  const replies = state.replies.filter(reply => reply.postId === postId);
-  const list = replies.length ? `<ul class="reply-list">${replies.map(reply => `<li><strong>我</strong><p>${escapeHtml(reply.text)}</p></li>`).join('')}</ul>` : '<p class="muted">还没有评论。</p>';
-  openDialog('动态评论', `<input name="mode" type="hidden" value="reply"><input name="postId" type="hidden" value="${postId}">${list}<label>写评论<textarea name="text" maxlength="160" rows="3" required></textarea></label><p class="muted">评论保存在此浏览器。</p>`, '保存评论', trigger);
+function openAccount(trigger) {
+  const options = regions.map(region => `<option${region === state.region ? ' selected' : ''}>${region}</option>`).join('');
+  openDialog('昵称与地区', `
+    <input name="mode" type="hidden" value="account">
+    <label>社区昵称<input name="displayName" maxlength="24" autocomplete="nickname" required value="${escapeHtml(account?.display_name ?? '')}"></label>
+    <label>我的地区<select name="region">${options}</select></label>
+    <p class="muted">发帖和评论时会显示此昵称。地区决定你能浏览和参与的社区。</p>
+    ${account && importPending() ? '<button class="button outline" type="button" data-action="import-local">导入此浏览器的旧档案</button>' : ''}`,
+    '保存设置', trigger);
+}
+
+function openImport(trigger) {
+  const local = localPetImport();
+  const pets = local.pets.filter(pet => !state.pets.some(item => item.id === pet.id));
+  const records = local.records.filter(record => !state.records.some(item => item.id === record.id));
+  dialog.close();
+  openDialog('导入旧档案', `
+    <input name="mode" type="hidden" value="import">
+    <p>将此浏览器的 ${pets.length} 份宠物档案和 ${records.length} 条记录复制到当前账号。档案仍为私人资料。</p>
+    <p class="muted">旧社区动态和评论留在原浏览器数据中。</p>`,
+    '导入档案', trigger);
+}
+
+function replyMarkup(replies) {
+  if (!replies.length) return '<p class="muted">还没有评论。</p>';
+  return `<ul class="reply-list">${replies.slice().reverse().map(reply => `<li><strong>${escapeHtml(reply.display_name)}${reply.author_id === user.id ? '（我）' : ''}</strong><p>${escapeHtml(reply.body)}</p></li>`).join('')}</ul>`;
+}
+
+async function openReplies(trigger, postId) {
+  openDialog('动态评论', `<input name="mode" type="hidden" value="reply"><input name="postId" type="hidden" value="${postId}">
+    <div id="replies" aria-live="polite"><p class="muted">正在读取评论…</p></div>
+    <label>写评论<textarea name="text" maxlength="160" rows="3" required></textarea></label>`, '发送评论', trigger);
+  await updateReplies(postId);
+}
+
+async function updateReplies(postId) {
+  const target = dialog.querySelector('#replies');
+  try {
+    const replies = await cloud.replies(postId);
+    if (target?.isConnected && dialog.open) target.innerHTML = replyMarkup(replies);
+  } catch {
+    if (target?.isConnected && dialog.open) target.textContent = '暂时无法读取评论。';
+  }
+}
+
+async function refreshRegion(region, expected) {
+  const profile = await cloud.saveProfile(user.id, {region}, false);
+  if (expected !== sessionNumber) return;
+  account = profile;
+  state.region = profile.region;
+  state.posts = [];
+  state.likes = [];
+  morePosts = false;
+  void loadFeed();
+}
+
+async function write(action, button) {
+  if (saving) {
+    toast('正在保存，请稍等。');
+    return;
+  }
+  saving = true;
+  const expected = sessionNumber;
+  const errorMessage = dialog.querySelector('#dialog-error');
+  if (button) button.disabled = true;
+  if (errorMessage) errorMessage.textContent = '';
+  try {
+    await action(expected);
+  } catch {
+    if (expected !== sessionNumber) return;
+    const message = '暂时无法完成操作，请检查连接后重试。';
+    if (dialog.open && errorMessage?.isConnected) errorMessage.textContent = message;
+    else toast(message);
+  } finally {
+    saving = false;
+    if (button?.isConnected) button.disabled = false;
+  }
 }
 
 main.addEventListener('change', event => {
   if (event.target.id !== 'active-pet') return;
   state.activePet = event.target.value;
   timelineFilter = 'all';
-  save();
   render();
   main.querySelector('#active-pet').focus();
 });
 
-main.addEventListener('click', event => {
+document.addEventListener('click', event => {
   const control = event.target.closest('button');
   if (!control) return;
-  const {action, filter, region, id, topic} = control.dataset;
-  if (topic) {
-    topicFilter = topic;
+  const {action, filter, region, id, topic, provider} = control.dataset;
+  if (action === 'retry-account') {
+    loadingAccount = true;
     render();
-    main.querySelector(`[data-topic="${topic}"]`).focus();
+    void startSession();
+  }
+  if (action === 'sign-in') void write(() => cloud.signIn(provider), control);
+  if (action === 'sign-out') void write(async () => {
+    await cloud.signOut();
+    if (user) await loadAccount(null);
+  }, control);
+  if (action === 'account') openAccount(control);
+  if (action === 'import-local') openImport(control);
+  if (!account) return;
+
+  if (topic && topicFilter !== topic) {
+    topicFilter = topic;
+    state.posts = [];
+    state.likes = [];
+    morePosts = false;
+    void loadFeed();
   }
   if (filter) {
     timelineFilter = filter;
     render();
     main.querySelector(`[data-filter="${filter}"]`).focus();
   }
-  if (region) {
-    state.region = region;
-    save();
-    render();
-    main.querySelector(`[data-region="${region}"]`).focus();
-  }
+  if (region && state.region !== region) void write(expected => refreshRegion(region, expected), control);
+  if (action === 'refresh-feed') void loadFeed();
+  if (action === 'more-posts' && !loadingFeed) void loadFeed({append: true});
   if (action === 'record') openRecord(control);
   if (action === 'add-pet') openPet(control);
   if (action === 'edit-pet') openPet(control, activePet());
@@ -464,23 +657,26 @@ main.addEventListener('click', event => {
   if (action === 'moment') openRecord(control, 'moment');
   if (action === 'log-walk') openRecord(control, 'moment', walks[state.region].title);
   if (action === 'recap') openRecap(control);
-  if (action === 'save-walk') {
-    const saved = state.savedWalks.includes(state.region);
-    state.savedWalks = saved ? state.savedWalks.filter(region => region !== state.region) : [...state.savedWalks, state.region];
-    const persisted = save();
+  if (action === 'save-walk') void write(async expected => {
+    const region = state.region;
+    const saved = state.savedWalks.includes(region);
+    const updated = saved ? state.savedWalks.filter(item => item !== region) : [...state.savedWalks, region];
+    const profile = await cloud.saveProfile(user.id, {saved_walks: updated}, false);
+    if (expected !== sessionNumber) return;
+    account = profile;
+    state.savedWalks = profile.saved_walks;
     render();
-    main.querySelector('[data-action="save-walk"]').focus();
-    toast(persisted ? (saved ? '已取消收藏' : '已收藏到此浏览器') : '浏览器储存不可用，刷新后会清除');
-  }
+    main.querySelector('[data-action="save-walk"]')?.focus();
+    toast(saved ? '已取消收藏' : '已收藏散步灵感');
+  }, control);
   if (action === 'post') openPost(control);
   if (action === 'share') openPost(control, records().find(record => record.id === id));
-  if (action === 'reply') openReplies(control, id);
-  if (action === 'like') {
-    state.likes = state.likes.includes(id) ? state.likes.filter(like => like !== id) : [...state.likes, id];
-    save();
-    render();
-    main.querySelector(`[data-action="like"][data-id="${id}"]`).focus();
-  }
+  if (action === 'reply') void openReplies(control, id);
+  if (action === 'like') void write(async expected => {
+    if (state.likes.includes(id)) await cloud.removeLike(id, user.id);
+    else await cloud.addLike(id);
+    if (expected === sessionNumber) void loadFeed();
+  }, control);
 });
 
 dialog.addEventListener('click', event => {
@@ -497,54 +693,131 @@ dialog.addEventListener('input', event => {
 dialog.addEventListener('close', () => {
   if (focusAfterClose?.isConnected) focusAfterClose.focus();
 });
+
+function toPage(destination) {
+  if (location.hash !== destination) location.hash = destination;
+  else render({focus: true});
+}
+
+async function handleSubmit(form, expected) {
+  const values = Object.fromEntries(new FormData(form));
+  const id = form.dataset.id ||= crypto.randomUUID();
+  if (values.mode === 'account') {
+    const creating = !account;
+    const profile = await cloud.saveProfile(user.id, {display_name: values.displayName.trim(), region: values.region}, creating);
+    if (expected !== sessionNumber) return;
+    account = profile;
+    state.region = profile.region;
+    state.savedWalks = profile.saved_walks;
+    state.posts = [];
+    state.likes = [];
+    morePosts = false;
+    if (creating) await loadPrivate(expected);
+    if (expected !== sessionNumber) return;
+    dialog.close();
+    render();
+    if (location.hash === '#community') void loadFeed();
+    toast('账号设置已保存');
+    return;
+  }
+  if (values.mode === 'import') {
+    const local = localPetImport();
+    if (local.pets.length) await cloud.importPets(local.pets);
+    if (expected !== sessionNumber) return;
+    if (local.records.length) await cloud.importRecords(local.records);
+    await loadPrivate(expected);
+    if (expected !== sessionNumber) return;
+    dialog.close();
+    render();
+    toast(importPending() ? '部分记录未能导入，请检查当前账号。' : '旧档案已导入');
+    return;
+  }
+  if (values.mode === 'pet') {
+    const pet = await cloud.savePet({id: values.petId || id, name: values.name.trim(), kind: values.kind, breed: values.breed.trim()});
+    if (expected !== sessionNumber) return;
+    const existing = state.pets.some(item => item.id === pet.id);
+    state.pets = existing ? state.pets.map(item => item.id === pet.id ? pet : item) : [...state.pets, pet];
+    state.activePet = pet.id;
+    timelineFilter = 'all';
+    dialog.close();
+    render();
+    toast('宠物档案已同步');
+    return;
+  }
+  if (values.mode === 'record') {
+    await cloud.addRecord({
+      id, pet_id: activePet().id, type: values.type, record_date: values.date,
+      value: values.type === 'weight' ? String(Number(values.value)) : values.value.trim(),
+      note: values.note.trim(), next_date: values.nextDate || null,
+    });
+    await loadPrivate(expected);
+    if (expected !== sessionNumber) return;
+    timelineFilter = 'all';
+    dialog.close();
+    toPage('#timeline');
+    toast('记录已同步到成长时间线');
+    return;
+  }
+  if (values.mode === 'reply') {
+    await cloud.addReply({id, post_id: values.postId, display_name: account.display_name, body: values.text.trim()});
+    if (expected !== sessionNumber) return;
+    form.elements.text.value = '';
+    delete form.dataset.id;
+    void updateReplies(values.postId);
+    void loadFeed({quiet: true});
+    toast('评论已发送');
+    return;
+  }
+  await cloud.addPost({id, display_name: account.display_name, region: state.region, topic: values.topic, body: values.text.trim()});
+  if (expected !== sessionNumber) return;
+  topicFilter = values.topic;
+  dialog.close();
+  if (location.hash === '#community') void loadFeed();
+  else toPage('#community');
+  toast(`已发布到${state.region}动态`);
+}
+
 dialog.addEventListener('submit', event => {
   event.preventDefault();
   const form = event.target;
-  const values = Object.fromEntries(new FormData(form));
-  if (values.mode === 'recap') return;
-  const isRecord = values.mode === 'record';
-  const required = form.elements[isRecord ? 'value' : values.mode === 'pet' ? 'name' : 'text'];
-  const content = required.value.trim();
-  if (!content) {
+  const mode = form.elements.mode.value;
+  if (mode === 'recap' || !user) return;
+  const required = form.elements[{record: 'value', pet: 'name', account: 'displayName', post: 'text', reply: 'text'}[mode]];
+  if (required && !required.value.trim()) {
     required.setCustomValidity('请输入内容。');
     required.reportValidity();
     return;
   }
-  if (values.nextDate && values.nextDate < values.date) {
+  if (form.elements.nextDate?.value && form.elements.nextDate.value < form.elements.date.value) {
     form.elements.nextDate.setCustomValidity('下次日期须在记录日期当日或之后。');
     form.elements.nextDate.reportValidity();
     return;
   }
-  const id = crypto.randomUUID();
-  let message;
-  let destination = location.hash;
-  if (isRecord) {
-    state.records.unshift({id, petId: activePet().id, type: values.type, date: values.date, value: content, note: values.note.trim(), nextDate: values.nextDate || ''});
-    timelineFilter = 'all';
-    message = '已添加到成长时间线';
-    destination = '#timeline';
-  } else if (values.mode === 'pet') {
-    const pet = {id: values.petId || id, name: content, kind: values.kind, breed: values.breed.trim()};
-    state.pets = values.petId ? state.pets.map(item => item.id === pet.id ? pet : item) : [...state.pets, pet];
-    state.activePet = pet.id;
-    timelineFilter = 'all';
-    message = '宠物档案已保存';
-  } else if (values.mode === 'reply') {
-    state.replies.push({postId: values.postId, text: content});
-    message = '评论已保存';
-  } else {
-    state.region = values.region;
-    topicFilter = values.topic;
-    state.posts.unshift({id, author: '我', emoji: '🐾', color: 'peach', region: values.region, topic: values.topic, date: today(), text: content, likes: 0});
-    message = `已发布到${values.region}动态`;
-    destination = '#community';
-  }
-  const persisted = save();
-  dialog.close();
-  if (location.hash !== destination) location.hash = destination;
-  else render({focus: values.mode !== 'reply'});
-  if (values.mode === 'reply') main.querySelector(`[data-action="reply"][data-id="${values.postId}"]`)?.focus();
-  toast(persisted ? message : `${message}，刷新后会清除`);
+  void write(expected => handleSubmit(form, expected), event.submitter);
 });
-window.addEventListener('hashchange', () => render({focus: true}));
-render();
+
+window.addEventListener('hashchange', () => {
+  render({focus: true});
+  if (account && location.hash === '#community') void loadFeed();
+});
+
+if (cloud.ready) {
+  cloud.onAuthChange((event, session) => {
+    if (event === 'INITIAL_SESSION' || (session?.user.id ?? null) === (user?.id ?? null)) return;
+    void loadAccount(session);
+  });
+  void startSession();
+  setInterval(() => {
+    if (!account || document.hidden || location.hash !== '#community' || loadingFeed || saving) return;
+    if (dialog.open) {
+      const postId = dialog.querySelector('[name="postId"]')?.value;
+      if (postId) void updateReplies(postId);
+      return;
+    }
+    if (state.posts.length <= 30) void loadFeed({quiet: true});
+  }, 20000);
+} else {
+  loadingAccount = false;
+  accountError = '暂时无法连接账号服务。';
+  render();
+}

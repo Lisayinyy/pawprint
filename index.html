@@ -7,8 +7,12 @@
   <meta name="description" content="爪印日记 · 记录毛孩子的成长，认识附近的宠友。">
   <title>爪印日记 · Pawprint</title>
   <link rel="icon" href="./paw.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=3">
-  <script src="./app.js?v=3" defer></script>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://icsfipzixsjpaxswgxch.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="stylesheet" href="./style.css?v=4">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous" defer></script>
+  <script src="./cloud-config.js?v=4" defer></script>
+  <script src="./cloud.js?v=4" defer></script>
+  <script src="./app.js?v=4" defer></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -41,7 +45,7 @@
         <a href="#timeline" data-page="timeline"><svg><use href="#i-clock"/></svg>成长时间线</a>
         <a href="#community" data-page="community"><svg><use href="#i-users"/></svg>同城社区</a>
       </nav>
-      <div class="side-note"><svg aria-hidden="true"><use href="#i-paw"/></svg><span>演示空间<small>记录与动态保存在此浏览器</small></span></div>
+      <div class="side-note" id="account-slot" aria-label="账号"></div>
     </aside>
     <main id="main" tabindex="-1"></main>
   </div>
