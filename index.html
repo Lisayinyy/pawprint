@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#f8f6f1">
+  <meta name="theme-color" content="#f7f4ed">
   <meta name="description" content="爪印日记 · 记录毛孩子的成长，认识附近的宠友。">
   <title>爪印日记 · Pawprint</title>
   <link rel="icon" href="./paw.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css">
-  <script src="./app.js" defer></script>
+  <link rel="stylesheet" href="./style.css?v=2">
+  <script src="./app.js?v=2" defer></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -26,17 +26,20 @@
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M5 13v7h14v-7"/></symbol>
     <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20 6a5 5 0 0 0-7 0l-1 1-1-1a5 5 0 0 0-7 7l8 8 8-8a5 5 0 0 0 0-7Z"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2c0 7 3 10 10 10-7 0-10 3-10 10 0-7-3-10-10-10 7 0 10-3 10-10Z"/></symbol>
+    <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 4h12v16l-6-4-6 4Z"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></symbol>
   </svg>
   <div class="shell">
     <aside class="sidebar">
-      <a class="brand" href="#profile"><span class="brand-icon"><svg><use href="#i-paw"/></svg></span><span>爪印日记<small>PAWPRINT</small></span></a>
+      <a class="brand" href="#profile"><span class="brand-icon"><svg aria-hidden="true"><use href="#i-paw"/></svg></span><span>爪印日记<small>PAWPRINT JOURNAL</small></span></a>
       <nav aria-label="主导航">
         <p class="nav-label">我的空间</p>
         <a href="#profile" data-page="profile"><svg><use href="#i-home"/></svg>宠物档案</a>
         <a href="#timeline" data-page="timeline"><svg><use href="#i-clock"/></svg>成长时间线</a>
         <a href="#community" data-page="community"><svg><use href="#i-users"/></svg>同城社区</a>
       </nav>
-      <div class="side-note"><svg><use href="#i-paw"/></svg><span>演示原型<small>新增内容保存在本浏览器</small></span></div>
+      <div class="side-note"><svg aria-hidden="true"><use href="#i-paw"/></svg><span>演示空间<small>记录与动态保存在此浏览器</small></span></div>
     </aside>
     <main id="main" tabindex="-1"></main>
   </div>
