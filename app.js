@@ -8,6 +8,11 @@ const types = {
   vaccine: {label: '疫苗', icon: 'shield', color: 'sage'},
   care: {label: '驱虫', icon: 'leaf', color: 'lilac'},
   visit: {label: '就诊', icon: 'cross', color: 'sky'},
+  walk: {label: '散步', icon: 'pin', color: 'sage'},
+  meal: {label: '喂食', icon: 'paw', color: 'peach'},
+  medication: {label: '用药', icon: 'cross', color: 'lilac'},
+  symptom: {label: '观察', icon: 'heart', color: 'rose'},
+  hygiene: {label: '洗护', icon: 'spark', color: 'sky'},
   moment: {label: '日常', icon: 'heart', color: 'rose'},
 };
 const walks = {
@@ -31,6 +36,7 @@ let signInPending = false;
 let signInError = '';
 let timelineFilter = 'all';
 let topicFilter = 'all';
+let routeFilter = 'all';
 let toastTimer;
 let focusAfterClose;
 let user = null;
@@ -44,6 +50,7 @@ let requestNumber = 0;
 let replyRequestNumber = 0;
 let sessionNumber = 0;
 let saving = false;
+let lastRecord = null;
 const emptyState = () => ({records: [], posts: [], likes: [], savedWalks: [], pets: [], activePet: null, region: null});
 let state = emptyState();
 let legacy = null;
@@ -102,6 +109,7 @@ function readPost(post) {
     date: today(new Date(post.created_at)),
     likes: post.paw_likes[0]?.count ?? 0,
     replies: post.paw_comments[0]?.count ?? 0,
+    saved: Boolean(post.paw_bookmarks?.length),
   };
 }
 
@@ -116,7 +124,7 @@ async function loadFeed({append = false, quiet = false} = {}) {
     render();
   }
   try {
-    const result = await cloud.posts(state.region, topicFilter, cursor, user.id);
+    const result = await cloud.posts(state.region, topicFilter, cursor, user.id, ['walk','saved'].includes(topicFilter) ? routeFilter : 'all');
     if (request !== requestNumber) return;
     const posts = result.posts.map(readPost);
     const previous = append ? state.posts : [];
@@ -144,6 +152,7 @@ async function loadAccount(session) {
   const expected = ++sessionNumber;
   ++requestNumber;
   if ((user?.id ?? null) !== (session?.user.id ?? null)) drafts.clear();
+  lastRecord = null;
   user = session?.user ?? null;
   account = null;
   accountError = '';
@@ -266,7 +275,7 @@ function button(label, action, symbol = 'plus') {
 
 function entry(record, canShare = false) {
   const type = types[record.type];
-  return `<article class="entry"><span class="tile-icon ${type.color}">${icon(type.icon)}</span><div class="entry-text"><span class="entry-meta">${type.label} · ${dateLabel(record.date)}</span><h3>${escapeHtml(recordTitle(record))}</h3>${record.note ? `<p>${escapeHtml(record.note)}</p>` : ''}</div>${canShare ? `<button class="button quiet share" data-action="share" data-id="${record.id}" aria-label="分享${type.label}记录">${icon('share')}<span>分享</span></button>` : ''}</article>`;
+  return `<article class="entry"><span class="tile-icon ${type.color}">${icon(type.icon)}</span><div class="entry-text"><span class="entry-meta">${type.label} · ${dateLabel(record.date)}</span><h3>${escapeHtml(recordTitle(record))}</h3>${record.note ? `<p>${escapeHtml(record.note)}</p>` : ''}</div>${canShare ? `<button class="button quiet share" data-action="share" data-id="${record.id}" aria-label="分享${type.label}记录">${icon('share')}<span>分享</span></button><button class="button quiet" data-action="edit-record" data-id="${record.id}" aria-label="编辑${type.label}记录">编辑</button>` : ''}</article>`;
 }
 
 function periodEnding(end, days) {
@@ -378,7 +387,7 @@ function updateRecap() {
 function carePlan(all) {
   const seen = new Set();
   const plans = all.filter(record => {
-    if (!['vaccine', 'care', 'visit'].includes(record.type)) return false;
+    if (!careTypes.includes(record.type)) return false;
     const key = `${record.type}:${record.value.toLowerCase()}`;
     if (seen.has(key)) return false;
     seen.add(key);
@@ -387,8 +396,8 @@ function carePlan(all) {
   return `<section class="section"><div class="section-title"><h2>护理待办</h2><span class="muted">根据记录里的下次日期</span></div>
     <div class="card entries">${plans.length ? plans.map(record => {
       const due = record.nextDate <= today();
-      return `<article class="entry"><span class="tile-icon ${due ? 'rose' : 'sage'}">${icon('clock')}</span><div class="entry-text"><span class="entry-meta">${dateLabel(record.nextDate)} · ${due ? '已到期' : '待办'}</span><h3>${escapeHtml(record.value)}</h3></div><button class="button outline" data-action="complete-plan" data-id="${record.id}">记完成</button></article>`;
-    }).join('') : '<p class="empty">在疫苗、驱虫或就诊记录里填写「下次日期」，这里就会显示待办。</p>'}</div></section>`;
+      return `<article class="entry"><span class="tile-icon ${due ? 'rose' : 'sage'}">${icon('clock')}</span><div class="entry-text"><span class="entry-meta">${dateLabel(record.nextDate)} · ${due ? '已到期' : '待办'}</span><h3>${escapeHtml(record.value)}</h3></div><div class="entry-actions"><button class="button quiet" data-action="calendar" data-id="${record.id}">加入日历</button><button class="button outline" data-action="complete-plan" data-id="${record.id}">记完成</button></div></article>`;
+    }).join('') : '<p class="empty">在疫苗、驱虫、用药、洗护或就诊记录里填写「下次日期」，这里就会显示待办。</p>'}</div></section>`;
 }
 
 function profile() {
@@ -396,7 +405,7 @@ function profile() {
   if (!pet) return `${header('MY PET · 01', '宠物档案', '给家里的伙伴建一份成长档案。')}
     <div class="card empty-panel"><h2>添加第一只宠物</h2><p>称重、护理待办和日常都会归到它的档案。</p>${button('添加宠物', 'add-pet')}</div>`;
   const all = records();
-  const stats = Object.entries(types).filter(([key]) => key !== 'moment').map(([key, type]) => {
+  const stats = Object.entries(types).filter(([key]) => ['weight','vaccine','care','visit'].includes(key)).map(([key, type]) => {
     const last = all.find(record => record.type === key);
     const value = last ? (key === 'weight' ? `${Number(last.value)} <small>kg</small>` : escapeHtml(last.value)) : '待记录';
     return `<article class="card stat"><span class="tile-icon ${type.color}">${icon(type.icon)}</span><span class="stat-label">最近${type.label}</span><strong>${value}</strong><span class="stat-date">${last ? dateLabel(last.date) : '暂无记录'}</span></article>`;
@@ -416,6 +425,10 @@ function profile() {
       ${recapTile()}
     </div>
     <section class="section"><div class="section-title"><h2>健康概览</h2><span class="muted">最近一次记录</span></div><div class="stats">${stats}</div></section>
+    <section class="section tool-panel" aria-label="快捷记录和分享工具">
+      <div><h2>今天记什么？</h2><div class="chips">${['weight','meal','walk','medication','symptom','hygiene'].map(key => `<button class="chip" data-action="quick-record" data-id="${key}">${types[key].label}</button>`).join('')}</div></div>
+      <div class="entry-actions"><button class="button outline" data-action="brief">${icon('cross')}看诊摘要</button><button class="button outline" data-action="handoff">${icon('users')}照护交接单</button></div>
+    </section>
     ${carePlan(all)}
     <section class="section"><div class="section-title"><h2>最近记录</h2><a class="text-link" href="#timeline">查看时间线${icon('arrow')}</a></div><div class="card entries">${all.length ? all.slice(0, 3).map(record => entry(record)).join('') : '<p class="empty">给这位新伙伴记下第一笔吧。</p>'}</div></section>`;
 }
@@ -456,8 +469,12 @@ function postCard(post) {
   const author = post.author_id === user.id ? `${post.author}（我）` : post.author;
   return `<article class="card post">
     <div class="post-head"><span class="avatar peach">${escapeHtml(Array.from(post.author)[0])}</span><div><h3>${escapeHtml(author)}</h3><p>${post.region} · ${dateLabel(post.date)}</p></div><span class="post-topic">${topics[post.topic]}</span></div>
+    ${post.route ? routeMarkup(post.route) : ''}
     <p class="post-body">${escapeHtml(post.text)}</p>
-    <div class="post-actions"><button class="button quiet like" data-action="like" data-id="${post.id}" aria-label="${liked ? '取消点赞' : '点赞'}" aria-pressed="${liked}">${icon('heart')}${post.likes}</button><button class="button quiet" data-action="reply" data-id="${post.id}">${icon('chat')}评论 ${post.replies}</button></div>
+    ${post.outcome ? `<aside class="outcome"><strong>试过以后</strong><p>${escapeHtml(post.outcome)}</p></aside>` : ''}
+    <div class="post-actions"><button class="button quiet like" data-action="like" data-id="${post.id}" aria-label="${liked ? '取消点赞' : '点赞'}" aria-pressed="${liked}">${icon('heart')}${post.likes}</button><button class="button quiet" data-action="reply" data-id="${post.id}">${icon('chat')}评论 ${post.replies}</button>
+      ${post.route ? `<button class="button quiet" data-action="bookmark-route" data-id="${post.id}" aria-pressed="${post.saved}">${icon('bookmark')}${post.saved ? '已收藏' : '收藏路线'}</button>${activePet() ? `<button class="button outline" data-action="walk-log" data-id="${post.id}">${icon('check')}我也走了</button>` : ''}` : ''}
+      ${post.topic === 'help' && post.author_id === user.id ? `<button class="button outline" data-action="outcome" data-id="${post.id}">${post.outcome ? '编辑后续' : '补充后续'}</button>` : ''}</div>
   </article>`;
 }
 
@@ -478,7 +495,7 @@ function walkCard() {
 }
 
 function community() {
-  const filters = [['all', '全部'], ...Object.entries(topics)];
+  const filters = [['all', '全部'], ...Object.entries(topics), ['saved', '收藏路线']];
   const feed = state.posts;
   const status = feedError || (loadingFeed && !feed.length ? '正在读取动态…' : '');
   return `${header('PET NEIGHBOURS · 03', '同城社区', '和同区宠友交流日常、养宠经验与散步路线。', button('发动态', 'post'))}
@@ -488,8 +505,9 @@ function community() {
     </section>
     <section class="section"><div class="section-title"><h2>${state.region}动态</h2><button class="button quiet" data-action="refresh-feed">${icon('clock')}刷新动态</button></div>
       <div class="chips" aria-label="动态话题">${filters.map(([key, title]) => `<button class="chip" data-topic="${key}" aria-pressed="${key === topicFilter}">${title}</button>`).join('')}</div>
+      ${topicFilter === 'walk' || topicFilter === 'saved' ? `<div class="route-guide"><p>按公共起终点和到访时段找路线，走过后可以留下新路况。</p><label class="route-filter">路线特点<select name="routeFilter"><option value="all">全部特点</option>${options(routeTags, routeFilter)}</select></label><a class="text-link" href="https://www.lcsd.gov.hk/tc/facilities/otherinfo/petpark.html" target="_blank" rel="noopener noreferrer">查康文署宠物共享公园 ↗</a></div>` : ''}
       ${status ? `<p class="feed-status muted" role="status">${status}</p>` : ''}
-      <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? `<div class="card empty-panel"><h3>${topicFilter === 'all' ? '这里还没有动态' : '这个话题还没有动态'}</h3><p>分享一个日常，或向同区宠友问个问题。</p>${button('写第一条动态', 'post')}</div>` : '')}</div>
+      <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? `<div class="card empty-panel"><h3>${topicFilter === 'saved' ? '这个区域还没有已收藏的路线' : topicFilter === 'all' ? '这里还没有动态' : '这个话题还没有动态'}</h3><p>${topicFilter === 'saved' ? '去遛宠路线看看，把想走的路线留在这里。' : '分享一个日常，或向同区宠友问个问题。'}</p>${topicFilter === 'saved' ? '<button class="button outline" data-topic="walk">浏览路线</button>' : button(topicFilter === 'walk' ? '发布试走卡' : '写第一条动态', 'post')}</div>` : '')}</div>
       ${morePosts ? '<button class="button outline more-posts" data-action="more-posts">加载更早的动态</button>' : ''}
     </section>
     ${walkCard()}`;
@@ -512,7 +530,7 @@ function accountPage() {
       <h1 id="login-title">${user && !status ? '设置个人资料' : fromCommunity ? '加入同城社区' : '记录每一步成长'}</h1>
       <p class="login-intro">${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '设置昵称，选一个地区，就可以开始记录和交流。' : fromCommunity ? '和同区宠友聊日常、问问题，一起发现新的散步路线。' : '记录宠物的健康和日常，也认识附近的宠友。'))}</p>
       <div class="hero-actions">${previewLink}${accountAction}</div>
-      <p class="login-hint">可直接浏览示例档案和社区。登录后可以保存自己的记录并跨设备同步。</p>
+      <p class="login-hint">免登录可试记护理、下载看诊摘要和体验路线复走。登录后，你的档案会跨设备同步。</p>
       <p class="dialog-error login-error" role="alert">${signInError}</p>
     </div>
     <img src="./corgi.svg" width="500" height="340" alt="">
@@ -547,11 +565,18 @@ function render({focus = false} = {}) {
   }
 }
 
-function toast(message) {
+function toast(message, undo = false) {
   clearTimeout(toastTimer);
   notice.textContent = message;
   notice.hidden = false;
-  toastTimer = setTimeout(() => { notice.hidden = true; }, 3600);
+  if (undo) {
+    const action = document.createElement('button');
+    action.className = 'button';
+    action.dataset.action = 'undo-record';
+    action.textContent = '撤销';
+    notice.append(action);
+  }
+  toastTimer = setTimeout(() => { notice.hidden = true; }, undo ? 9000 : 3600);
 }
 
 function fitDialog() {
@@ -583,14 +608,21 @@ function openDialog(title, fields, submit, trigger, isDownload = false) {
 function recordField(type) {
   if (type === 'weight') return '<label>体重（kg）<input name="value" type="number" min="0.01" max="250" step="0.01" placeholder="例如 9.1" required></label>';
   const label = type === 'moment' ? '日常标题' : `${types[type].label}项目`;
-  const examples = {moment: '例如 第一次去海边', vaccine: '例如 年度联苗', care: '例如 体内驱虫', visit: '例如 年度体检'};
-  const followUp = type === 'moment' ? '' : '<label>下次日期（选填）<input type="date" name="nextDate"></label>';
+  const examples = {moment: '例如 第一次去海边', vaccine: '例如 年度联苗', care: '例如 体内驱虫', visit: '例如 年度体检', walk: '例如 公园散步 20 分钟', meal: '例如 晚餐 45 克', medication: '例如 医嘱用药记录', symptom: '例如 今天食欲和平常不同', hygiene: '例如 剪指甲'};
+  const followUp = !careTypes.includes(type) ? '' : '<label>下次日期（选填）<input type="date" name="nextDate"></label>';
   return `<label>${label}<input name="value" maxlength="40" placeholder="${examples[type]}" required></label>${followUp}`;
 }
 
-function openRecord(trigger, selected = 'weight', title = '') {
-  openDialog(`给${escapeHtml(activePet().name)}记一笔`, `<input name="mode" type="hidden" value="record"><div class="form-row"><label>记录类型<select name="type">${Object.entries(types).map(([key, type]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${type.label}</option>`).join('')}</select></label><label>记录日期<input name="date" type="date" value="${today()}" max="${today()}" required></label></div><div id="record-field">${recordField(selected)}</div><label>备注（选填）<textarea name="note" rows="3" maxlength="160" placeholder="例如 就诊机构、护理安排或一个日常瞬间"></textarea></label>`, '保存记录', trigger);
-  dialog.querySelector('[name="value"]').value = title;
+function openRecord(trigger, selected = 'weight', title = '', existing = null) {
+  openDialog(existing ? '编辑记录' : `给${escapeHtml(activePet().name)}记一笔`, `<input name="mode" type="hidden" value="record"><input name="recordId" type="hidden" value="${existing?.id || ''}"><div class="form-row"><label>记录类型<select name="type"${existing ? ' disabled' : ''}>${Object.entries(types).map(([key, type]) => `<option value="${key}"${key === selected ? ' selected' : ''}>${type.label}</option>`).join('')}</select></label><label>记录日期<input name="date" type="date" value="${today()}" max="${today()}" required></label></div><div id="record-field">${recordField(selected)}</div><label>备注（选填）<textarea name="note" rows="3" maxlength="160" placeholder="例如 就诊机构、护理安排或一个日常瞬间"></textarea></label>`, '保存记录', trigger);
+  const {elements} = dialog.querySelector('form');
+  elements.value.value = title;
+  if (existing) {
+    elements.date.value = existing.date;
+    elements.note.value = existing.note;
+    if (elements.nextDate) elements.nextDate.value = existing.nextDate || '';
+  }
+  elements.value.focus();
 }
 
 function restoreDraft(key) {
@@ -599,7 +631,10 @@ function restoreDraft(key) {
   const draft = drafts.get(key);
   if (draft?.id) form.dataset.id = draft.id;
   if (draft?.topic && form.elements.topic) form.elements.topic.value = draft.topic;
-  if (draft) form.elements.text.value = draft.text;
+  if (draft) {
+    form.elements.text.value = draft.text;
+    for (const [name, value] of Object.entries(draft.route || {})) form.elements[name].value = value;
+  }
   updateCounter(form);
 }
 
@@ -613,23 +648,28 @@ function saveDraft(form) {
   const key = form.dataset.draftKey;
   if (!key) return;
   const text = form.elements.text.value;
-  if (!text.trim()) {
+  const route = form.elements.topic?.value === 'walk'
+    ? Object.fromEntries(['routeName','start','finish','routeDate','minutes','slot','tag'].map(name => [name, form.elements[name].value]))
+    : null;
+  if (!text.trim() && !route?.routeName && !route?.start && !route?.finish) {
     drafts.delete(key);
     return;
   }
-  drafts.set(key, {text, topic: form.elements.topic?.value, id: form.dataset.id});
+  drafts.set(key, {text, route, topic: form.elements.topic?.value, id: form.dataset.id});
 }
 
 function openPost(trigger, record) {
   const draft = record ? `${activePet().name}的${types[record.type].label}记录：${recordTitle(record)}。` : '';
-  const topic = record || topicFilter === 'all' ? 'daily' : topicFilter;
+  const topic = record ? 'daily' : topicFilter === 'saved' ? 'walk' : Object.hasOwn(topics, topicFilter) ? topicFilter : 'daily';
   openDialog(record ? '分享成长记录' : '发布动态', `
     <input name="mode" type="hidden" value="post">
     <p class="audience-note">${icon('pin')} ${demoMode ? '仅添加到体验版的' : '发布至 '}${state.region}社区</p>
     <label>话题<select name="topic">${Object.entries(topics).map(([key, title]) => `<option value="${key}"${key === topic ? ' selected' : ''}>${title}</option>`).join('')}</select></label>
+    ${routeFields()}
     <label>动态内容<textarea name="text" rows="4" maxlength="280" placeholder="想分享哪件养宠小事？" required>${escapeHtml(draft)}</textarea></label>
     <p class="composer-meta"><span>关闭后可在本页继续草稿</span><span class="character-count" aria-hidden="true"></span></p>`, '发布动态', trigger);
   restoreDraft(`post:${state.region}:${record?.id ?? ''}`);
+  syncRouteFields(dialog.querySelector('form'));
 }
 
 function openPet(trigger, pet) {
@@ -663,17 +703,24 @@ function openImport(trigger) {
     '导入档案', trigger);
 }
 
-function replyMarkup(replies) {
+function replyMarkup(replies, post) {
   if (!replies.length) return '<p class="muted">还没有评论。</p>';
-  return `<ul class="reply-list">${replies.slice().reverse().map(reply => `<li><strong>${escapeHtml(reply.display_name)}${reply.author_id === user.id ? '（我）' : ''}</strong><p>${escapeHtml(reply.body)}</p></li>`).join('')}</ul>`;
+  return `<ul class="reply-list">${replies.slice().reverse().map(reply => `<li>
+    <strong>${escapeHtml(reply.display_name)}${reply.author_id === user.id ? '（我）' : ''}</strong>
+    ${reply.walk_date ? `<span class="reply-label">走过 · ${escapeHtml(reply.walk_date)} · ${walkSlots[reply.walk_slot] || ''}</span>` : ''}
+    ${reply.id === post.outcome_reply ? '<span class="reply-label">采纳的建议</span>' : ''}
+    <p>${escapeHtml(reply.body)}</p>
+    ${post.topic === 'help' && post.author_id === user.id && reply.author_id !== user.id
+      ? `<button type="button" class="button quiet" data-action="outcome" data-id="${post.id}" data-reply-id="${reply.id}">采纳并补充结果</button>` : ''}</li>`).join('')}</ul>`;
 }
 
 async function openReplies(trigger, postId) {
   const post = state.posts.find(item => item.id === postId);
   if (!post) return;
-  openDialog('动态评论', `<input name="mode" type="hidden" value="reply"><input name="postId" type="hidden" value="${postId}">
+  openDialog(post.route ? '路线讨论' : '动态评论', `<input name="mode" type="hidden" value="reply"><input name="postId" type="hidden" value="${postId}">
     <div class="reply-context"><strong>${escapeHtml(post.author)}</strong><p>${escapeHtml(post.text)}</p></div>
-    <div id="replies" aria-live="polite"><p class="muted">正在读取评论…</p></div>
+    ${post.route ? `<label>筛选走过的时段<select name="replySlot"><option value="all">全部评论</option>${options(walkSlots)}</select></label>` : ''}
+    <div id="replies"  aria-live="polite"><p class="muted">正在读取评论…</p></div>
     <label>写评论<textarea name="text" maxlength="160" rows="2" required placeholder="和宠友说点什么…"></textarea></label>
     <p class="composer-meta"><span>关闭后可在本页继续草稿</span><span class="character-count" aria-hidden="true"></span></p>`, '发送评论', trigger);
   restoreDraft(`reply:${postId}`);
@@ -687,7 +734,11 @@ async function updateReplies(postId) {
   try {
     const replies = await cloud.replies(postId);
     if (request !== replyRequestNumber || !target.isConnected || !dialog.open) return;
-    const markup = replyMarkup(replies);
+    const post = state.posts.find(item => item.id === postId);
+    if (!post) return;
+    const slot = dialog.querySelector('[name="replySlot"]')?.value;
+    const filtered = !slot || slot === 'all' ? replies : replies.filter(reply => reply.walk_slot === slot);
+    const markup = replyMarkup(filtered, post);
     if (target.innerHTML !== markup) target.innerHTML = markup;
   } catch {
     if (request === replyRequestNumber && target.isConnected && dialog.open) target.innerHTML = '<p class="muted">暂时无法读取评论。</p><button type="button" class="button outline" data-action="retry-replies">重试加载</button>';
@@ -755,6 +806,13 @@ async function write(action, button) {
 }
 
 main.addEventListener('change', event => {
+  if (event.target.name === 'routeFilter') {
+    routeFilter = event.target.value;
+    state.posts = [];
+    morePosts = false;
+    void loadFeed().then(() => main.querySelector('[name="routeFilter"]')?.focus({preventScroll: true}));
+    return;
+  }
   if (event.target.id !== 'active-pet') return;
   state.activePet = event.target.value;
   timelineFilter = 'all';
@@ -796,6 +854,38 @@ document.addEventListener('click', event => {
   if (action === 'refresh-feed') void loadFeed();
   if (action === 'more-posts' && !loadingFeed) void loadFeed({append: true});
   if (action === 'record') openRecord(control);
+  if (action === 'quick-record') openRecord(control, id);
+  if (action === 'edit-record') {
+    const record = records().find(item => item.id === id);
+    if (record) openRecord(control, record.type, record.value, record);
+  }
+  if (action === 'calendar') calendarReminder(records().find(item => item.id === id));
+  if (action === 'brief' || action === 'handoff') openBrief(control, action === 'handoff');
+  if (action === 'walk-log') openWalk(control, state.posts.find(item => item.id === id));
+  if (action === 'outcome' && !saving) {
+    const post = state.posts.find(item => item.id === id);
+    if (dialog.open) dialog.close();
+    openOutcome(control, post);
+  }
+  if (action === 'bookmark-route') void write(async expected => {
+    const post = state.posts.find(item => item.id === id);
+    if (!post?.route) return;
+    await cloud.saveBookmark(id, user.id, !post.saved);
+    if (expected !== sessionNumber) return;
+    if (topicFilter === 'saved') state.posts = state.posts.filter(item => item.id !== id);
+    else post.saved = !post.saved;
+    render();
+    toast(post.saved && topicFilter !== 'saved' ? '已收藏路线' : '已取消收藏');
+    void loadFeed({quiet: true});
+  }, control);
+  if (action === 'undo-record' && lastRecord) void write(async expected => {
+    await cloud.deleteRecord(lastRecord);
+    await loadPrivate(expected);
+    if (expected !== sessionNumber) return;
+    lastRecord = null;
+    render();
+    toast('已撤销刚才的记录');
+  }, control);
   if (action === 'add-pet') openPet(control);
   if (action === 'edit-pet') openPet(control, activePet());
   if (action === 'complete-plan') {
@@ -835,7 +925,16 @@ dialog.addEventListener('cancel', event => {
   if (dialog.querySelector('form[data-pending]')) event.preventDefault();
 });
 dialog.addEventListener('change', event => {
-  if (event.target.name === 'topic') saveDraft(event.target.form);
+  const {name, form} = event.target;
+  if (name === 'topic') syncRouteFields(form);
+  if (form?.elements.mode.value === 'post') saveDraft(form);
+  if (form?.elements.mode.value === 'brief') refreshBrief();
+  if (name === 'replySlot') void updateReplies(form.elements.postId.value);
+  if (name === 'shareWalk') {
+    form.querySelector('#walk-feedback').hidden = !event.target.checked;
+    form.elements.feedback.disabled = !event.target.checked;
+    form.elements.feedback.required = event.target.checked;
+  }
   if (event.target.name === 'type') dialog.querySelector('#record-field').innerHTML = recordField(event.target.value);
   if (event.target.name === 'days') updateRecap();
 });
@@ -845,6 +944,9 @@ dialog.addEventListener('input', event => {
     updateCounter(event.target.form);
     saveDraft(event.target.form);
   }
+  const form = event.target.form;
+  if (form?.elements.mode.value === 'brief') refreshBrief();
+  if (form?.elements.mode.value === 'post') saveDraft(form);
   if (event.target.name === 'date') dialog.querySelector('[name="nextDate"]')?.setCustomValidity('');
 });
 dialog.addEventListener('close', () => {
@@ -903,17 +1005,38 @@ async function handleSubmit(form, expected) {
     return;
   }
   if (values.mode === 'record') {
-    await cloud.addRecord({
-      id, pet_id: activePet().id, type: values.type, record_date: values.date,
-      value: values.type === 'weight' ? String(Number(values.value)) : values.value.trim(),
+    const changes = {
+      record_date: values.date, value: form.elements.type.value === 'weight' ? String(Number(values.value)) : values.value.trim(),
       note: values.note.trim(), next_date: values.nextDate || null,
-    });
+    };
+    if (values.recordId) await cloud.editRecord(values.recordId, changes);
+    else await cloud.addRecord({id, pet_id: activePet().id, type: values.type, ...changes});
     await loadPrivate(expected);
     if (expected !== sessionNumber) return;
     timelineFilter = 'all';
     dialog.close();
     toPage('#timeline');
-    toast(demoMode ? '记录已添加到体验版时间线' : '记录已同步到成长时间线');
+    lastRecord = values.recordId ? null : id;
+    toast(values.recordId ? '已更新记录' : '已存入成长时间线', !values.recordId);
+    return;
+  }
+  if (values.mode === 'walk-log') {
+    await cloud.logWalk({p_id: id, p_post: values.postId, p_pet: activePet().id, p_date: values.date,
+      p_slot: values.slot, p_minutes: Number(values.minutes), p_feedback: values.feedback?.trim() || null});
+    await loadPrivate(expected);
+    if (expected !== sessionNumber) return;
+    dialog.close();
+    timelineFilter = 'walk';
+    toPage('#timeline');
+    toast(values.feedback ? '已记录散步并分享路况' : '散步已存入私人时间线');
+    return;
+  }
+  if (values.mode === 'outcome') {
+    await cloud.saveOutcome(values.postId, values.replyId || null, values.outcome.trim());
+    if (expected !== sessionNumber) return;
+    dialog.close();
+    void loadFeed({quiet: true});
+    toast('已更新互助帖的后续');
     return;
   }
   if (values.mode === 'reply') {
@@ -929,7 +1052,11 @@ async function handleSubmit(form, expected) {
     toast(demoMode ? '评论已添加到体验版' : '评论已发送');
     return;
   }
-  await cloud.addPost({id, display_name: account.display_name, region: state.region, topic: values.topic, body: values.text.trim()});
+  const route = values.topic === 'walk' ? {
+    name: values.routeName.trim(), start: values.start.trim(), finish: values.finish.trim(),
+    minutes: Number(values.minutes), slot: values.slot, tag: values.tag, date: values.routeDate,
+  } : null;
+  await cloud.addPost({id, display_name: account.display_name, region: state.region, topic: values.topic, body: values.text.trim(), route});
   if (expected !== sessionNumber) return;
   drafts.delete(form.dataset.draftKey);
   topicFilter = values.topic;
@@ -944,10 +1071,16 @@ dialog.addEventListener('submit', event => {
   const form = event.target;
   const mode = form.elements.mode.value;
   if (mode === 'recap' || !user) return;
-  const required = form.elements[{record: 'value', pet: 'name', account: 'displayName', post: 'text', reply: 'text'}[mode]];
-  if (required && !required.value.trim()) {
-    required.setCustomValidity('请输入内容。');
-    required.reportValidity();
+  if (mode === 'brief') {
+    saveText(`爪印日记-${form.dataset.brief}.txt`, form.querySelector('.brief-preview').textContent);
+    toast('已下载摘要');
+    return;
+  }
+  const blank = Array.from(form.elements).find(field =>
+    field.required && !field.disabled && typeof field.value === 'string' && !field.value.trim());
+  if (blank) {
+    blank.setCustomValidity('请输入内容。');
+    blank.reportValidity();
     return;
   }
   if (form.elements.nextDate?.value && form.elements.nextDate.value < form.elements.date.value) {
