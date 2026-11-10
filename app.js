@@ -505,7 +505,7 @@ function community() {
     </section>
     <section class="section"><div class="section-title"><h2>${state.region}动态</h2><button class="button quiet" data-action="refresh-feed">${icon('clock')}刷新动态</button></div>
       <div class="chips" aria-label="动态话题">${filters.map(([key, title]) => `<button class="chip" data-topic="${key}" aria-pressed="${key === topicFilter}">${title}</button>`).join('')}</div>
-      ${topicFilter === 'walk' || topicFilter === 'saved' ? `<div class="route-guide"><p>按公共起终点和到访时段找路线，走过后可以留下新路况。</p><label class="route-filter">路线特点<select name="routeFilter"><option value="all">全部特点</option>${options(routeTags, routeFilter)}</select></label><a class="text-link" href="https://www.lcsd.gov.hk/tc/facilities/otherinfo/petpark.html" target="_blank" rel="noopener noreferrer">查康文署宠物共享公园 ↗</a></div>` : ''}
+      ${topicFilter === 'walk' || topicFilter === 'saved' ? `<div class="route-guide"><p>按公共起终点和到访时段找路线，走过后可以留下新路况。</p><label class="route-filter">路线特点<select name="routeFilter"><option value="all">全部特点</option>${options(routeTags, routeFilter)}</select></label><button class="button outline" data-action="places">${icon('pin')}查宠物共享公园</button></div>` : ''}
       ${status ? `<p class="feed-status muted" role="status">${status}</p>` : ''}
       <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? `<div class="card empty-panel"><h3>${topicFilter === 'saved' ? '这个区域还没有已收藏的路线' : topicFilter === 'all' ? '这里还没有动态' : '这个话题还没有动态'}</h3><p>${topicFilter === 'saved' ? '去遛宠路线看看，把想走的路线留在这里。' : '分享一个日常，或向同区宠友问个问题。'}</p>${topicFilter === 'saved' ? '<button class="button outline" data-topic="walk">浏览路线</button>' : button(topicFilter === 'walk' ? '发布试走卡' : '写第一条动态', 'post')}</div>` : '')}</div>
       ${morePosts ? '<button class="button outline more-posts" data-action="more-posts">加载更早的动态</button>' : ''}
@@ -860,6 +860,8 @@ document.addEventListener('click', event => {
     if (record) openRecord(control, record.type, record.value, record);
   }
   if (action === 'calendar') calendarReminder(records().find(item => item.id === id));
+  if (action === 'places') openPlaces(control);
+  if (action === 'more-parks') updatePlaces(true);
   if (action === 'brief' || action === 'handoff') openBrief(control, action === 'handoff');
   if (action === 'walk-log') openWalk(control, state.posts.find(item => item.id === id));
   if (action === 'outcome' && !saving) {
@@ -929,6 +931,7 @@ dialog.addEventListener('change', event => {
   if (name === 'topic') syncRouteFields(form);
   if (form?.elements.mode.value === 'post') saveDraft(form);
   if (form?.elements.mode.value === 'brief') refreshBrief();
+  if (name === 'parkRegion') updatePlaces();
   if (name === 'replySlot') void updateReplies(form.elements.postId.value);
   if (name === 'shareWalk') {
     form.querySelector('#walk-feedback').hidden = !event.target.checked;
@@ -945,6 +948,7 @@ dialog.addEventListener('input', event => {
     saveDraft(event.target.form);
   }
   const form = event.target.form;
+  if (event.target.name === 'parkQuery') updatePlaces();
   if (form?.elements.mode.value === 'brief') refreshBrief();
   if (form?.elements.mode.value === 'post') saveDraft(form);
   if (event.target.name === 'date') dialog.querySelector('[name="nextDate"]')?.setCustomValidity('');
@@ -1071,6 +1075,10 @@ dialog.addEventListener('submit', event => {
   const form = event.target;
   const mode = form.elements.mode.value;
   if (mode === 'recap' || !user) return;
+  if (mode === 'places') {
+    dialog.close();
+    return;
+  }
   if (mode === 'brief') {
     saveText(`爪印日记-${form.dataset.brief}.txt`, form.querySelector('.brief-preview').textContent);
     toast('已下载摘要');

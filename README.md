@@ -3,6 +3,7 @@
 [正式版](https://lisayinyy.github.io/pawprint/) · [免登录体验](https://lisayinyy.github.io/pawprint/?demo=1)
 
 - 宠物档案、成长时间线、护理待办、日历提醒、看诊摘要与照护交接单。
+- 港岛、九龙及新界的宠物共享公园可按名址检索，资料来自[香港康乐及文化事务署](https://www.lcsd.gov.hk/clpss/tc/webApp/Facility/Details.do?ftid=165)。
 - 同区动态、试走卡、路线收藏、分时段复走反馈和互助后续。
 - 正式版用 GitHub 登录，记录同步到 Supabase。免登录体验用标签页数据。
 

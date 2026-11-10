@@ -126,3 +126,35 @@ function calendarReminder(record) {
   saveText('爪印日记-护理提醒.ics', folded.join('\r\n'), 'text/calendar;charset=utf-8');
   toast('已下载日历文件，打开后添加提醒');
 }
+
+const parkSource = 'https://www.lcsd.gov.hk/clpss/tc/webApp/Facility/Details.do?ftid=165';
+
+function openPlaces(trigger) {
+  openDialog('宠物共享公园', `<input name="mode" type="hidden" value="places">
+    <p class="muted">康文署场地资料。带宠物到指定范围，出发前请查看场地公告。</p>
+    <div class="form-row"><label>区域<select name="parkRegion">${options({all:'全香港',港岛:'港岛',九龙:'九龙',新界:'新界'}, state.region)}</select></label>
+    <label>找公园<input type="search" name="parkQuery" autocomplete="off" placeholder="公园、地区或地址"></label></div>
+    <p id="park-count" class="muted" role="status"></p><ul class="park-list"></ul>
+    <button type="button" class="button outline" data-action="more-parks" hidden>显示更多场地</button>
+    <p class="muted">资料来源：香港康乐及文化事务署 · 2026-11-11 查阅<br>
+    <a href="${parkSource}" target="_blank" rel="noopener noreferrer">查看康文署场地原文</a></p>`, '完成', trigger);
+  updatePlaces();
+}
+
+function updatePlaces(more = false) {
+  const form = dialog.querySelector('form');
+  const term = form.elements.parkQuery.value.trim().toLowerCase();
+  const selected = form.elements.parkRegion.value;
+  const matches = parkDirectory.filter(([region, district, name, address, , alias]) =>
+    (selected === 'all' || region === selected) && `${district} ${name} ${address} ${alias}`.toLowerCase().includes(term));
+  const limit = more ? Number(form.dataset.parkLimit) + 12 : 12;
+  form.dataset.parkLimit = String(limit);
+  form.querySelector('#park-count').textContent = matches.length ? `找到 ${matches.length} 个场地` : '没有符合的场地，试试其他关键词。';
+  form.querySelector('.park-list').innerHTML = matches.slice(0, limit).map(([,district,name,address,anchor]) => {
+    const mapQuery = encodeURIComponent(`香港 ${name.replace(/[（(].*?[)）]/g, '')} ${address}`);
+    return `<li><strong>${escapeHtml(name)}</strong><p>${escapeHtml(district)}${address ? ` · ${escapeHtml(address)}` : ''}</p>
+      <a class="text-link" href="https://www.google.com/maps/search/?api=1&amp;query=${mapQuery}" target="_blank" rel="noopener noreferrer">地图 ↗</a>
+      <a class="text-link" href="${parkSource}#${escapeHtml(anchor)}" target="_blank" rel="noopener noreferrer">场地规则 ↗</a></li>`;
+  }).join('');
+  form.querySelector('[data-action="more-parks"]').hidden = matches.length <= limit;
+}
