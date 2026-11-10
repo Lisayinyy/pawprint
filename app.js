@@ -22,6 +22,12 @@ const providerNames = {github: 'GitHub', google: 'Google'};
 const main = document.querySelector('#main');
 const dialog = document.querySelector('#dialog');
 const notice = document.querySelector('#notice');
+const navigation = document.querySelector('.sidebar nav');
+const accountSlot = document.querySelector('#account-slot');
+const returnRouteKey = 'pawprint.auth-return';
+const drafts = new Map();
+let signInPending = false;
+let signInError = '';
 let timelineFilter = 'all';
 let topicFilter = 'all';
 let toastTimer;
@@ -34,6 +40,7 @@ let feedError = '';
 let loadingFeed = false;
 let morePosts = false;
 let requestNumber = 0;
+let replyRequestNumber = 0;
 let sessionNumber = 0;
 let saving = false;
 const emptyState = () => ({records: [], posts: [], likes: [], savedWalks: [], pets: [], activePet: null, region: null});
@@ -135,6 +142,7 @@ async function loadFeed({append = false, quiet = false} = {}) {
 async function loadAccount(session) {
   const expected = ++sessionNumber;
   ++requestNumber;
+  if ((user?.id ?? null) !== (session?.user.id ?? null)) drafts.clear();
   user = session?.user ?? null;
   account = null;
   accountError = '';
@@ -167,11 +175,48 @@ async function loadAccount(session) {
 async function startSession() {
   try {
     const session = await cloud.getSession();
+    if (cloud.authReturn?.callback || cloud.authReturn?.failed) {
+      restoreAuthRoute();
+      if (!session) signInError = 'GitHub 授权未完成，请重新登录。';
+    }
     await loadAccount(session);
   } catch {
     loadingAccount = false;
     accountError = '暂时无法连接登录服务，请重试。';
     render();
+  }
+}
+
+function restoreAuthRoute() {
+  const url = new URL(location.href);
+  let route;
+  try {
+    route = sessionStorage.getItem(returnRouteKey);
+    sessionStorage.removeItem(returnRouteKey);
+  } catch {
+    // Returning to the default page is safe if tab storage is unavailable.
+  }
+  for (const key of ['code', 'error', 'error_code', 'error_description']) url.searchParams.delete(key);
+  url.hash = Object.hasOwn(pages, route) ? route : '';
+  history.replaceState(history.state, '', url);
+}
+
+async function signIn(provider) {
+  if (signInPending) return;
+  signInPending = true;
+  signInError = '';
+  render();
+  try {
+    const route = location.hash.slice(1);
+    try { sessionStorage.setItem(returnRouteKey, route); } catch { /* default route */ }
+    const destination = await cloud.signIn(provider);
+    if (!destination) throw new Error('Missing OAuth destination');
+    location.assign(destination);
+  } catch {
+    signInPending = false;
+    signInError = '暂时无法打开 GitHub 登录，请检查网络后重试。';
+    render();
+    main.querySelector('[data-action="sign-in"]')?.focus();
   }
 }
 
@@ -440,34 +485,46 @@ function community() {
       <div class="region-copy"><span class="tile-icon sage">${icon('pin')}</span><div><h2>我的地区</h2><p>此处显示你选定地区的动态和评论。</p></div></div>
       <div class="chips" aria-label="社区区域">${regions.map(region => `<button class="chip" data-region="${region}" aria-pressed="${state.region === region}">${region}</button>`).join('')}</div>
     </section>
-    ${walkCard()}
     <section class="section"><div class="section-title"><h2>${state.region}动态</h2><button class="button quiet" data-action="refresh-feed">${icon('clock')}刷新动态</button></div>
       <div class="chips" aria-label="动态话题">${filters.map(([key, title]) => `<button class="chip" data-topic="${key}" aria-pressed="${key === topicFilter}">${title}</button>`).join('')}</div>
       ${status ? `<p class="feed-status muted" role="status">${status}</p>` : ''}
-      <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? '<div class="card entries"><p class="empty">这里还没有动态。发一条和同区宠友打个招呼吧。</p></div>' : '')}</div>
+      <div class="feed">${feed.length ? feed.map(postCard).join('') : (!status ? `<div class="card empty-panel"><h3>${topicFilter === 'all' ? '这里还没有动态' : '这个话题还没有动态'}</h3><p>分享一个日常，或向同区宠友问个问题。</p>${button('写第一条动态', 'post')}</div>` : '')}</div>
       ${morePosts ? '<button class="button outline more-posts" data-action="more-posts">加载更早的动态</button>' : ''}
-    </section>`;
+    </section>
+    ${walkCard()}`;
 }
 
 function accountPage() {
   const status = loadingAccount ? '正在连接账号…' : accountError;
   const localFile = location.protocol === 'file:';
-  const providers = cloud.providers.map(provider => `<button class="button primary" data-action="sign-in" data-provider="${provider}">使用 ${providerNames[provider]} 登录</button>`).join('');
-  return `${header('PAWPRINT JOURNAL', '爪印日记', '给宠物留一份成长记录，也认识同区的宠友。')}
-    <section class="hero login-panel"><div class="hero-copy">
-      <span class="pill hero-label">${icon('paw')} 爪印日记</span>
-      <h2>${user && !status ? '设置个人资料' : '欢迎回来'}</h2>
-      <p>${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '选一个昵称和地区，就可以开始记录和交流。' : '登录后，在不同设备查看你的宠物档案和同区动态。'))}</p>
+  const fromCommunity = location.hash === '#community';
+  const providers = cloud.providers.map(provider => `<button class="button primary" data-action="sign-in" data-provider="${provider}"${signInPending ? ' disabled' : ''}>${signInPending ? '正在前往 GitHub…' : `使用 ${providerNames[provider]} 登录`}</button>`).join('');
+  return `<section class="hero login-panel" aria-labelledby="login-title">
+    <div class="hero-copy">
+      <span class="pill hero-label">${icon('paw')} PAWPRINT JOURNAL</span>
+      <h1 id="login-title">${user && !status ? '设置个人资料' : fromCommunity ? '加入同城社区' : '记录每一步成长'}</h1>
+      <p class="login-intro">${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '设置昵称，选一个地区，就可以开始记录和交流。' : fromCommunity ? '和同区宠友聊日常、问问题，一起发现新的散步路线。' : '记录宠物的健康和日常，也认识附近的宠友。'))}</p>
       <div class="hero-actions">${localFile ? '<a class="button primary" href="https://lisayinyy.github.io/pawprint/">打开网页版</a>' : loadingAccount ? '' : accountError ? '<button class="button outline" data-action="retry-account">重试</button>' : user ? button('设置昵称和地区', 'account') : providers}</div>
-    </div><img src="./corgi.svg" alt=""></section>`;
+      ${!user && !localFile && !status ? '<p class="login-hint">登录后可跨设备同步。社区只展示你设置的昵称。</p>' : ''}
+      <p class="dialog-error login-error" role="alert">${signInError}</p>
+    </div>
+    <img src="./corgi.svg" width="500" height="340" alt="">
+  </section>`;
 }
 
 const pages = {profile, timeline, community};
 function render({focus = false} = {}) {
+  const focused = document.activeElement;
+  const previousControl = focused?.closest('button');
+  const selector = previousControl && main.contains(previousControl)
+    ? Array.from(previousControl.attributes).filter(attribute => attribute.name.startsWith('data-'))
+      .map(attribute => `[${attribute.name}="${CSS.escape(attribute.value)}"]`).join('') : '';
   const key = location.hash.slice(1);
   const page = Object.hasOwn(pages, key) ? key : 'profile';
   main.innerHTML = account && !loadingAccount && !accountError ? pages[page]() : accountPage();
-  document.querySelector('#account-slot').innerHTML = user
+  navigation.hidden = !account || Boolean(accountError) || loadingAccount;
+  document.querySelector('.shell').classList.toggle('has-navigation', !navigation.hidden);
+  accountSlot.innerHTML = user
     ? `<div class="account-label">${escapeHtml(account?.display_name || '已登录')}</div>${account ? '<button class="button quiet" data-action="account">账号设置</button>' : ''}<button class="button quiet" data-action="sign-out">退出登录</button>`
     : '<span class="muted">成长档案与同区社区</span>';
   document.querySelectorAll('[data-page]').forEach(link => {
@@ -477,6 +534,8 @@ function render({focus = false} = {}) {
   if (focus) {
     window.scrollTo(0, 0);
     main.focus({preventScroll: true});
+  } else if (selector && !dialog.open) {
+    main.querySelector(selector)?.focus({preventScroll: true});
   }
 }
 
@@ -487,13 +546,30 @@ function toast(message) {
   toastTimer = setTimeout(() => { notice.hidden = true; }, 3600);
 }
 
+function fitDialog() {
+  if (!dialog.open || !window.visualViewport) return;
+  const viewport = window.visualViewport;
+  dialog.style.setProperty('--visible-height', `${viewport.height}px`);
+  dialog.style.setProperty('--keyboard-offset', `${Math.max(0, innerHeight - viewport.height - viewport.offsetTop)}px`);
+}
+
+window.visualViewport?.addEventListener('resize', fitDialog);
+window.visualViewport?.addEventListener('scroll', fitDialog);
+
 function openDialog(title, fields, submit, trigger, isDownload = false) {
-  focusAfterClose = trigger;
+  const focusSelector = trigger?.dataset.id && trigger.dataset.action
+    ? `[data-action="${CSS.escape(trigger.dataset.action)}"][data-id="${CSS.escape(trigger.dataset.id)}"]` : null;
+  focusAfterClose = () => {
+    const target = trigger?.isConnected ? trigger : focusSelector && main.querySelector(focusSelector);
+    target?.focus?.({preventScroll: true});
+  };
   const primary = isDownload
     ? `<a id="recap-download" class="button primary" hidden>${icon('download')}${submit}</a>`
     : `<button class="button primary" type="submit">${submit}</button>`;
-  dialog.innerHTML = `<form id="editor"><div class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="button quiet close" type="button" data-action="close" aria-label="关闭">${icon('close')}</button></div>${fields}<p id="dialog-error" class="dialog-error" role="alert"></p><div class="dialog-actions"><button class="button quiet" type="button" data-action="close">取消</button>${primary}</div></form>`;
+  dialog.innerHTML = `<form id="editor"><div class="dialog-head"><h2 id="dialog-title">${title}</h2><button class="button quiet close" type="button" data-action="close" aria-label="关闭">${icon('close')}</button></div><div class="dialog-content">${fields}<p id="dialog-error" class="dialog-error" role="alert"></p></div><div class="dialog-actions"><button class="button quiet" type="button" data-action="close">取消</button>${primary}</div></form>`;
+  dialog.classList.toggle('composer', ['post', 'reply'].includes(dialog.querySelector('[name="mode"]').value));
   dialog.showModal();
+  fitDialog();
 }
 
 function recordField(type) {
@@ -509,14 +585,43 @@ function openRecord(trigger, selected = 'weight', title = '') {
   dialog.querySelector('[name="value"]').value = title;
 }
 
+function restoreDraft(key) {
+  const form = dialog.querySelector('form');
+  form.dataset.draftKey = key;
+  const draft = drafts.get(key);
+  if (draft?.id) form.dataset.id = draft.id;
+  if (draft?.topic && form.elements.topic) form.elements.topic.value = draft.topic;
+  if (draft) form.elements.text.value = draft.text;
+  updateCounter(form);
+}
+
+function updateCounter(form) {
+  const field = form.elements.text;
+  const counter = form.querySelector('.character-count');
+  if (field && counter) counter.textContent = `${field.value.length} / ${field.maxLength}`;
+}
+
+function saveDraft(form) {
+  const key = form.dataset.draftKey;
+  if (!key) return;
+  const text = form.elements.text.value;
+  if (!text.trim()) {
+    drafts.delete(key);
+    return;
+  }
+  drafts.set(key, {text, topic: form.elements.topic?.value, id: form.dataset.id});
+}
+
 function openPost(trigger, record) {
   const draft = record ? `${activePet().name}的${types[record.type].label}记录：${recordTitle(record)}。` : '';
   const topic = record || topicFilter === 'all' ? 'daily' : topicFilter;
   openDialog(record ? '分享成长记录' : '发布动态', `
     <input name="mode" type="hidden" value="post">
+    <p class="audience-note">${icon('pin')} 发布至 ${state.region}社区</p>
     <label>话题<select name="topic">${Object.entries(topics).map(([key, title]) => `<option value="${key}"${key === topic ? ' selected' : ''}>${title}</option>`).join('')}</select></label>
     <label>动态内容<textarea name="text" rows="4" maxlength="280" placeholder="想分享哪件养宠小事？" required>${escapeHtml(draft)}</textarea></label>
-    <p class="muted">你的昵称和这条动态会显示给${state.region}的已登录宠友。</p>`, '发布动态', trigger);
+    <p class="composer-meta"><span>关闭后可在本页继续草稿</span><span class="character-count" aria-hidden="true"></span></p>`, '发布动态', trigger);
+  restoreDraft(`post:${state.region}:${record?.id ?? ''}`);
 }
 
 function openPet(trigger, pet) {
@@ -556,19 +661,28 @@ function replyMarkup(replies) {
 }
 
 async function openReplies(trigger, postId) {
+  const post = state.posts.find(item => item.id === postId);
+  if (!post) return;
   openDialog('动态评论', `<input name="mode" type="hidden" value="reply"><input name="postId" type="hidden" value="${postId}">
+    <div class="reply-context"><strong>${escapeHtml(post.author)}</strong><p>${escapeHtml(post.text)}</p></div>
     <div id="replies" aria-live="polite"><p class="muted">正在读取评论…</p></div>
-    <label>写评论<textarea name="text" maxlength="160" rows="3" required></textarea></label>`, '发送评论', trigger);
+    <label>写评论<textarea name="text" maxlength="160" rows="2" required placeholder="和宠友说点什么…"></textarea></label>
+    <p class="composer-meta"><span>关闭后可在本页继续草稿</span><span class="character-count" aria-hidden="true"></span></p>`, '发送评论', trigger);
+  restoreDraft(`reply:${postId}`);
   await updateReplies(postId);
 }
 
 async function updateReplies(postId) {
   const target = dialog.querySelector('#replies');
+  if (!target) return;
+  const request = ++replyRequestNumber;
   try {
     const replies = await cloud.replies(postId);
-    if (target?.isConnected && dialog.open) target.innerHTML = replyMarkup(replies);
+    if (request !== replyRequestNumber || !target.isConnected || !dialog.open) return;
+    const markup = replyMarkup(replies);
+    if (target.innerHTML !== markup) target.innerHTML = markup;
   } catch {
-    if (target?.isConnected && dialog.open) target.textContent = '暂时无法读取评论。';
+    if (request === replyRequestNumber && target.isConnected && dialog.open) target.innerHTML = '<p class="muted">暂时无法读取评论。</p><button type="button" class="button outline" data-action="retry-replies">重试加载</button>';
   }
 }
 
@@ -591,18 +705,44 @@ async function write(action, button) {
   saving = true;
   const expected = sessionNumber;
   const errorMessage = dialog.querySelector('#dialog-error');
+  const form = button?.type === 'submit' ? button.form : null;
+  const previousLabel = button?.textContent;
+  const draftField = form?.elements.text;
+  const closeButtons = form?.querySelectorAll('[data-action="close"]');
   if (button) button.disabled = true;
+  if (form) {
+    form.dataset.pending = 'true';
+    closeButtons.forEach(control => { control.disabled = true; });
+    if (draftField) draftField.readOnly = true;
+    button.textContent = {post: '正在发布…', reply: '正在发送…'}[form.elements.mode.value] ?? '正在保存…';
+  }
   if (errorMessage) errorMessage.textContent = '';
   try {
     await action(expected);
-  } catch {
+  } catch (error) {
     if (expected !== sessionNumber) return;
-    const message = '暂时无法完成操作，请检查连接后重试。';
+    if (error.code === 'EARLIER_DRAFT_SENT' && form) {
+      delete form.dataset.id;
+      saveDraft(form);
+      errorMessage.textContent = '上一版文字已发送。这次修改仍在草稿里，请确认后再发。';
+      return;
+    }
+    const message = draftField
+      ? '这次发送未确认，文字已保留。请检查连接后重试。'
+      : '暂时无法完成操作，请检查连接后重试。';
     if (dialog.open && errorMessage?.isConnected) errorMessage.textContent = message;
     else toast(message);
   } finally {
     saving = false;
-    if (button?.isConnected) button.disabled = false;
+    if (button?.isConnected) {
+      button.disabled = false;
+      if (form) button.textContent = previousLabel;
+    }
+    if (form) {
+      delete form.dataset.pending;
+      closeButtons.forEach(control => { control.disabled = false; });
+    }
+    if (draftField) draftField.readOnly = false;
   }
 }
 
@@ -623,7 +763,7 @@ document.addEventListener('click', event => {
     render();
     void startSession();
   }
-  if (action === 'sign-in') void write(() => cloud.signIn(provider), control);
+  if (action === 'sign-in') void signIn(provider);
   if (action === 'sign-out') void write(async () => {
     await cloud.signOut();
     if (user) await loadAccount(null);
@@ -672,6 +812,7 @@ document.addEventListener('click', event => {
   if (action === 'post') openPost(control);
   if (action === 'share') openPost(control, records().find(record => record.id === id));
   if (action === 'reply') void openReplies(control, id);
+  if (action === 'retry-replies') void updateReplies(dialog.querySelector('[name="postId"]').value);
   if (action === 'like') void write(async expected => {
     if (state.likes.includes(id)) await cloud.removeLike(id, user.id);
     else await cloud.addLike(id);
@@ -680,18 +821,26 @@ document.addEventListener('click', event => {
 });
 
 dialog.addEventListener('click', event => {
-  if (event.target.closest('[data-action="close"]')) dialog.close();
+  if (event.target.closest('[data-action="close"]') && !dialog.querySelector('form[data-pending]')) dialog.close();
+});
+dialog.addEventListener('cancel', event => {
+  if (dialog.querySelector('form[data-pending]')) event.preventDefault();
 });
 dialog.addEventListener('change', event => {
+  if (event.target.name === 'topic') saveDraft(event.target.form);
   if (event.target.name === 'type') dialog.querySelector('#record-field').innerHTML = recordField(event.target.value);
   if (event.target.name === 'days') updateRecap();
 });
 dialog.addEventListener('input', event => {
   event.target.setCustomValidity?.('');
+  if (event.target.name === 'text') {
+    updateCounter(event.target.form);
+    saveDraft(event.target.form);
+  }
   if (event.target.name === 'date') dialog.querySelector('[name="nextDate"]')?.setCustomValidity('');
 });
 dialog.addEventListener('close', () => {
-  if (focusAfterClose?.isConnected) focusAfterClose.focus();
+  focusAfterClose?.();
 });
 
 function toPage(destination) {
@@ -702,6 +851,7 @@ function toPage(destination) {
 async function handleSubmit(form, expected) {
   const values = Object.fromEntries(new FormData(form));
   const id = form.dataset.id ||= crypto.randomUUID();
+  saveDraft(form);
   if (values.mode === 'account') {
     const creating = !account;
     const profile = await cloud.saveProfile(user.id, {display_name: values.displayName.trim(), region: values.region}, creating);
@@ -761,15 +911,19 @@ async function handleSubmit(form, expected) {
   if (values.mode === 'reply') {
     await cloud.addReply({id, post_id: values.postId, display_name: account.display_name, body: values.text.trim()});
     if (expected !== sessionNumber) return;
+    drafts.delete(form.dataset.draftKey);
     form.elements.text.value = '';
     delete form.dataset.id;
-    void updateReplies(values.postId);
+    updateCounter(form);
+    await updateReplies(values.postId);
+    if (expected !== sessionNumber) return;
     void loadFeed({quiet: true});
     toast('评论已发送');
     return;
   }
   await cloud.addPost({id, display_name: account.display_name, region: state.region, topic: values.topic, body: values.text.trim()});
   if (expected !== sessionNumber) return;
+  drafts.delete(form.dataset.draftKey);
   topicFilter = values.topic;
   dialog.close();
   if (location.hash === '#community') void loadFeed();
@@ -796,6 +950,16 @@ dialog.addEventListener('submit', event => {
   void write(expected => handleSubmit(form, expected), event.submitter);
 });
 
+document.querySelector('.skip-link').addEventListener('click', event => {
+  event.preventDefault();
+  main.focus();
+});
+window.addEventListener('pageshow', event => {
+  if (event.persisted && signInPending) {
+    signInPending = false;
+    render();
+  }
+});
 window.addEventListener('hashchange', () => {
   render({focus: true});
   if (account && location.hash === '#community') void loadFeed();

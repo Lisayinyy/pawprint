@@ -1,6 +1,12 @@
 'use strict';
 
 const config = window.pawprintConfig;
+const query = new URLSearchParams(location.search);
+const fragment = new URLSearchParams(location.hash.slice(1));
+const authReturn = {
+  failed: [query, fragment].some(params => params.has('error') || params.has('error_code')),
+  callback: query.has('code'),
+};
 const client = location.protocol !== 'file:' && config?.url && config.key && window.supabase
   ? window.supabase.createClient(config.url, config.key, {auth: {flowType: 'pkce'}})
   : null;
@@ -21,14 +27,30 @@ async function allRows(query) {
   }
 }
 
+async function insertMessage(table, message) {
+  const columns = Object.hasOwn(message, 'topic') ? 'body,topic' : 'body';
+  const [inserted] = await checked(client.from(table)
+    .upsert(message, {onConflict: 'id', ignoreDuplicates: true}).select(columns));
+  const receipt = inserted ?? await checked(client.from(table).select(columns).eq('id', message.id).single());
+  if (receipt.body !== message.body || receipt.topic !== message.topic) {
+    throw Object.assign(new Error('An earlier draft was already sent'), {code: 'EARLIER_DRAFT_SENT'});
+  }
+}
+
 window.pawCloud = {
   ready: Boolean(client),
+  authReturn,
   providers: config?.providers ?? [],
   getSession: async () => (await checked(client.auth.getSession())).session,
   onAuthChange: callback => client.auth.onAuthStateChange((event, session) => {
     setTimeout(() => callback(event, session), 0);
   }),
-  signIn: provider => checked(client.auth.signInWithOAuth({provider, options: {redirectTo: config.redirectTo}})),
+  signIn: async provider => {
+    const data = await checked(client.auth.signInWithOAuth({
+      provider, options: {redirectTo: config.redirectTo, skipBrowserRedirect: true},
+    }));
+    return data.url;
+  },
   signOut: () => checked(client.auth.signOut({scope: 'local'})),
   profile: () => checked(client.from('paw_profiles').select('id,display_name,region,saved_walks').maybeSingle()),
   saveProfile: (id, fields, creating) => {
@@ -54,10 +76,10 @@ window.pawCloud = {
     const likes = await checked(client.from('paw_likes').select('post_id').in('post_id', posts.map(post => post.id)).eq('user_id', userId));
     return {posts, likes: likes.map(like => like.post_id)};
   },
-  addPost: post => checked(client.from('paw_posts').upsert(post, {onConflict: 'id', ignoreDuplicates: true})),
+  addPost: post => insertMessage('paw_posts', post),
   replies: postId => checked(client.from('paw_comments').select('id,author_id,display_name,body,created_at').eq('post_id', postId)
     .order('created_at', {ascending: false}).order('id', {ascending: false}).limit(80)),
-  addReply: reply => checked(client.from('paw_comments').upsert(reply, {onConflict: 'id', ignoreDuplicates: true})),
+  addReply: reply => insertMessage('paw_comments', reply),
   addLike: postId => checked(client.from('paw_likes').upsert({post_id: postId}, {onConflict: 'post_id,user_id', ignoreDuplicates: true})),
   removeLike: (postId, userId) => checked(client.from('paw_likes').delete().eq('post_id', postId).eq('user_id', userId)),
 };

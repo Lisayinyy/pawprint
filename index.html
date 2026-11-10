@@ -2,17 +2,17 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#f7f4ed">
   <meta name="description" content="爪印日记 · 记录毛孩子的成长，认识附近的宠友。">
   <title>爪印日记 · Pawprint</title>
   <link rel="icon" href="./paw.svg" type="image/svg+xml">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://icsfipzixsjpaxswgxch.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <link rel="stylesheet" href="./style.css?v=4">
+  <link rel="stylesheet" href="./style.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous" defer></script>
-  <script src="./cloud-config.js?v=4" defer></script>
-  <script src="./cloud.js?v=4" defer></script>
-  <script src="./app.js?v=4" defer></script>
+  <script src="./cloud-config.js?v=5" defer></script>
+  <script src="./cloud.js?v=5" defer></script>
+  <script src="./app.js?v=5" defer></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -36,14 +36,15 @@
     <symbol id="i-cross" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M12 8v8m-4-4h8"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 10c0 4-3.6 7-8 7a10 10 0 0 1-3.3-.6L4 19l1.4-4.2A6.2 6.2 0 0 1 4 10c0-4 3.6-7 8-7s8 3 8 7Z"/></symbol>
   </svg>
+  <a class="skip-link" href="#main">跳到主要内容</a>
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="#profile"><span class="brand-icon"><svg aria-hidden="true"><use href="#i-paw"/></svg></span><span>爪印日记<small>PAWPRINT JOURNAL</small></span></a>
-      <nav aria-label="主导航">
+      <nav aria-label="主导航" hidden>
         <p class="nav-label">我的空间</p>
-        <a href="#profile" data-page="profile"><svg><use href="#i-home"/></svg>宠物档案</a>
-        <a href="#timeline" data-page="timeline"><svg><use href="#i-clock"/></svg>成长时间线</a>
-        <a href="#community" data-page="community"><svg><use href="#i-users"/></svg>同城社区</a>
+        <a href="#profile" data-page="profile"><svg aria-hidden="true"><use href="#i-home"/></svg>宠物档案</a>
+        <a href="#timeline" data-page="timeline"><svg aria-hidden="true"><use href="#i-clock"/></svg>成长时间线</a>
+        <a href="#community" data-page="community"><svg aria-hidden="true"><use href="#i-users"/></svg>同城社区</a>
       </nav>
       <div class="side-note" id="account-slot" aria-label="账号"></div>
     </aside>

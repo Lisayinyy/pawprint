@@ -232,3 +232,78 @@ h1 { font-size: clamp(32px, 4.6vw, 48px); line-height: 1.14; letter-spacing: -.0
   .side-note:has(> .muted) { display: none; }
   .login-panel { min-height: 240px; }
 }
+
+/* Use the same touch targets and spacing throughout the mobile flows. */
+.sidebar nav[hidden] { display: none; }
+.skip-link {
+  position: fixed;
+  z-index: 4;
+  inset: 8px auto auto 8px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: var(--plum);
+  color: white;
+  transform: translateY(-150%);
+}
+.skip-link:focus { transform: none; }
+.login-panel h1 { max-width: 14em; font-size: clamp(33px, 5vw, 53px); text-wrap: balance; }
+.login-panel .login-intro { font-size: 16px; }
+.login-panel .login-hint { color: #594535; font-size: 12px; margin: 12px 0 0; }
+.login-panel .login-error { margin: 8px 0 0; color: #943322; }
+.login-panel .login-error:empty { display: none; }
+.login-panel .button { min-height: 48px; }
+#editor { grid-template-rows: auto minmax(0, 1fr) auto; }
+.dialog-content { display: grid; gap: 12px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.dialog-content #record-field { display: grid; gap: 10px; }
+.dialog-actions { padding-top: 8px; border-top: 1px solid var(--line); }
+.composer-meta { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.character-count { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.audience-note { display: inline-flex; align-items: center; gap: 7px; width: fit-content; padding: 6px 10px; border-radius: 9px; background: #f5eee2; font-size: 13px; }
+.reply-context { min-width: 0; background: #f7f3ec; border-radius: 12px; padding: 9px 11px; font-size: 13px; }
+.reply-context p { margin-top: 3px; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.post-head > div { min-width: 0; overflow-wrap: anywhere; }
+.post-actions .button { min-height: 44px; }
+.chip { min-height: 44px; }
+#dialog.composer #editor { max-height: calc(var(--visible-height, 100dvh) - 58px); }
+
+@media (max-width: 740px) {
+  .sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+  .sidebar nav:not([hidden]) {
+    position: fixed;
+    z-index: 2;
+    inset: auto 0 0;
+    gap: 6px;
+    padding: 6px max(12px, env(safe-area-inset-left)) max(6px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-right));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+  .sidebar nav a { min-height: 52px; flex-direction: column; gap: 2px; padding: 4px; font-size: 11px; }
+  .sidebar nav a svg { display: block; width: 19px; height: 19px; }
+  .side-note { border: 0; margin: 0; padding: 0; }
+  .side-note .account-label { display: none; }
+  .side-note .button { min-height: 44px; }
+  .has-navigation #main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .toast { bottom: calc(74px + env(safe-area-inset-bottom)); right: 12px; max-width: calc(100% - 24px); }
+  .login-panel { grid-template-columns: 1fr; min-height: 0; }
+  .login-panel img { grid-row: 1; width: min(78%, 300px); height: auto; max-height: 195px; margin: 0 auto; }
+  .login-panel .hero-copy { padding: 4px 18px 20px; }
+  .login-panel .hero-actions, .login-panel .hero-actions .button { width: 100%; }
+  .login-panel h1 { font-size: clamp(30px, 8vw, 41px); margin-top: 12px; }
+  .region-panel { padding: 12px; }
+  .region-panel .chips { gap: 8px; }
+  .section > .chips { gap: 8px; }
+  .section > .chips .chip { padding-inline: 10px; }
+  #dialog.composer {
+    position: fixed;
+    inset: auto 0 var(--keyboard-offset, 0px);
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(var(--visible-height, 100dvh) - 8px);
+    margin: 0;
+    padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+    border-radius: 21px 21px 0 0;
+  }
+  #dialog.composer #editor { gap: 8px; max-height: calc(var(--visible-height, 100dvh) - 38px); }
+  .dialog-actions .button, .dialog-head .button { min-height: 44px; }
+  .dialog-actions .primary { flex: 1; }
+}
