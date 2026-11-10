@@ -307,3 +307,20 @@ h1 { font-size: clamp(32px, 4.6vw, 48px); line-height: 1.14; letter-spacing: -.0
   .dialog-actions .button, .dialog-head .button { min-height: 44px; }
   .dialog-actions .primary { flex: 1; }
 }
+
+.demo-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 9px;
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid #ead9c6;
+  border-radius: 12px;
+  background: #fcf1e5;
+  color: #68462e;
+  font-size: 13px;
+}
+.demo-notice strong { color: #55351f; }
+.login-panel .hero-actions { gap: 8px; }
+.login-panel .hero-actions .outline { background: #fffaf2; }

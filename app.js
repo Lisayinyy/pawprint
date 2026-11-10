@@ -17,6 +17,7 @@ const walks = {
 };
 const legacyKey = 'pawprint.demo.v1';
 const cloud = window.pawCloud;
+const demoMode = Boolean(cloud.demo);
 const providerNames = {github: 'GitHub', google: 'Google'};
 
 const main = document.querySelector('#main');
@@ -498,14 +499,20 @@ function accountPage() {
   const status = loadingAccount ? '正在连接账号…' : accountError;
   const localFile = location.protocol === 'file:';
   const fromCommunity = location.hash === '#community';
-  const providers = cloud.providers.map(provider => `<button class="button primary" data-action="sign-in" data-provider="${provider}"${signInPending ? ' disabled' : ''}>${signInPending ? '正在前往 GitHub…' : `使用 ${providerNames[provider]} 登录`}</button>`).join('');
+  const providers = cloud.providers.map(provider => `<button class="button outline" data-action="sign-in" data-provider="${provider}"${signInPending ? ' disabled' : ''}>${signInPending ? '正在前往 GitHub…' : `使用 ${providerNames[provider]} 登录`}</button>`).join('');
+  const destination = fromCommunity ? 'community' : location.hash === '#timeline' ? 'timeline' : 'profile';
+  const previewBase = localFile ? 'https://lisayinyy.github.io/pawprint/' : './';
+  const previewLink = `<a class="button primary" href="${previewBase}?demo=1#${destination}">免登录体验${icon('arrow')}</a>`;
+  const accountAction = localFile ? '<a class="button outline" href="https://lisayinyy.github.io/pawprint/">打开网页版</a>'
+    : loadingAccount ? '' : accountError ? '<button class="button outline" data-action="retry-account">重试登录</button>'
+    : user ? button('设置昵称和地区', 'account') : providers;
   return `<section class="hero login-panel" aria-labelledby="login-title">
     <div class="hero-copy">
       <span class="pill hero-label">${icon('paw')} PAWPRINT JOURNAL</span>
       <h1 id="login-title">${user && !status ? '设置个人资料' : fromCommunity ? '加入同城社区' : '记录每一步成长'}</h1>
       <p class="login-intro">${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '设置昵称，选一个地区，就可以开始记录和交流。' : fromCommunity ? '和同区宠友聊日常、问问题，一起发现新的散步路线。' : '记录宠物的健康和日常，也认识附近的宠友。'))}</p>
-      <div class="hero-actions">${localFile ? '<a class="button primary" href="https://lisayinyy.github.io/pawprint/">打开网页版</a>' : loadingAccount ? '' : accountError ? '<button class="button outline" data-action="retry-account">重试</button>' : user ? button('设置昵称和地区', 'account') : providers}</div>
-      ${!user && !localFile && !status ? '<p class="login-hint">登录后可跨设备同步。社区只展示你设置的昵称。</p>' : ''}
+      <div class="hero-actions">${previewLink}${accountAction}</div>
+      <p class="login-hint">可直接浏览示例档案和社区。登录后可以保存自己的记录并跨设备同步。</p>
       <p class="dialog-error login-error" role="alert">${signInError}</p>
     </div>
     <img src="./corgi.svg" width="500" height="340" alt="">
@@ -521,10 +528,11 @@ function render({focus = false} = {}) {
       .map(attribute => `[${attribute.name}="${CSS.escape(attribute.value)}"]`).join('') : '';
   const key = location.hash.slice(1);
   const page = Object.hasOwn(pages, key) ? key : 'profile';
-  main.innerHTML = account && !loadingAccount && !accountError ? pages[page]() : accountPage();
+  const demoNotice = demoMode ? '<aside class="demo-notice" aria-label="体验版说明"><strong>免登录体验</strong><span>这里是示例档案和动态。你的改动只保留在当前标签页。</span></aside>' : '';
+  main.innerHTML = account && !loadingAccount && !accountError ? demoNotice + pages[page]() : accountPage();
   navigation.hidden = !account || Boolean(accountError) || loadingAccount;
   document.querySelector('.shell').classList.toggle('has-navigation', !navigation.hidden);
-  accountSlot.innerHTML = user
+  accountSlot.innerHTML = demoMode ? '<a class="button outline" href="./">返回正式版</a>' : user
     ? `<div class="account-label">${escapeHtml(account?.display_name || '已登录')}</div>${account ? '<button class="button quiet" data-action="account">账号设置</button>' : ''}<button class="button quiet" data-action="sign-out">退出登录</button>`
     : '<span class="muted">成长档案与同区社区</span>';
   document.querySelectorAll('[data-page]').forEach(link => {
@@ -617,7 +625,7 @@ function openPost(trigger, record) {
   const topic = record || topicFilter === 'all' ? 'daily' : topicFilter;
   openDialog(record ? '分享成长记录' : '发布动态', `
     <input name="mode" type="hidden" value="post">
-    <p class="audience-note">${icon('pin')} 发布至 ${state.region}社区</p>
+    <p class="audience-note">${icon('pin')} ${demoMode ? '仅添加到体验版的' : '发布至 '}${state.region}社区</p>
     <label>话题<select name="topic">${Object.entries(topics).map(([key, title]) => `<option value="${key}"${key === topic ? ' selected' : ''}>${title}</option>`).join('')}</select></label>
     <label>动态内容<textarea name="text" rows="4" maxlength="280" placeholder="想分享哪件养宠小事？" required>${escapeHtml(draft)}</textarea></label>
     <p class="composer-meta"><span>关闭后可在本页继续草稿</span><span class="character-count" aria-hidden="true"></span></p>`, '发布动态', trigger);
@@ -891,7 +899,7 @@ async function handleSubmit(form, expected) {
     timelineFilter = 'all';
     dialog.close();
     render();
-    toast('宠物档案已同步');
+    toast(demoMode ? '宠物档案已保存到体验版' : '宠物档案已同步');
     return;
   }
   if (values.mode === 'record') {
@@ -905,7 +913,7 @@ async function handleSubmit(form, expected) {
     timelineFilter = 'all';
     dialog.close();
     toPage('#timeline');
-    toast('记录已同步到成长时间线');
+    toast(demoMode ? '记录已添加到体验版时间线' : '记录已同步到成长时间线');
     return;
   }
   if (values.mode === 'reply') {
@@ -918,7 +926,7 @@ async function handleSubmit(form, expected) {
     await updateReplies(values.postId);
     if (expected !== sessionNumber) return;
     void loadFeed({quiet: true});
-    toast('评论已发送');
+    toast(demoMode ? '评论已添加到体验版' : '评论已发送');
     return;
   }
   await cloud.addPost({id, display_name: account.display_name, region: state.region, topic: values.topic, body: values.text.trim()});
@@ -928,7 +936,7 @@ async function handleSubmit(form, expected) {
   dialog.close();
   if (location.hash === '#community') void loadFeed();
   else toPage('#community');
-  toast(`已发布到${state.region}动态`);
+  toast(demoMode ? '动态已添加到体验版' : `已发布到${state.region}动态`);
 }
 
 dialog.addEventListener('submit', event => {
@@ -972,7 +980,7 @@ if (cloud.ready) {
   });
   void startSession();
   setInterval(() => {
-    if (!account || document.hidden || location.hash !== '#community' || loadingFeed || saving) return;
+    if (demoMode || !account || document.hidden || location.hash !== '#community' || loadingFeed || saving) return;
     if (dialog.open) {
       const postId = dialog.querySelector('[name="postId"]')?.value;
       if (postId) void updateReplies(postId);

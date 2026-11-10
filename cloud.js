@@ -7,7 +7,7 @@ const authReturn = {
   failed: [query, fragment].some(params => params.has('error') || params.has('error_code')),
   callback: query.has('code'),
 };
-const client = location.protocol !== 'file:' && config?.url && config.key && window.supabase
+const client = !window.pawCloud?.demo && location.protocol !== 'file:' && config?.url && config.key && window.supabase
   ? window.supabase.createClient(config.url, config.key, {auth: {flowType: 'pkce'}})
   : null;
 
@@ -37,7 +37,7 @@ async function insertMessage(table, message) {
   }
 }
 
-window.pawCloud = {
+window.pawCloud ??= {
   ready: Boolean(client),
   authReturn,
   providers: config?.providers ?? [],
