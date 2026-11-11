@@ -7,15 +7,16 @@
   <meta name="description" content="爪印日记 · 记录毛孩子的成长，认识附近的宠友。">
   <title>爪印日记 · Pawprint</title>
   <link rel="icon" href="./paw.svg" type="image/svg+xml">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://icsfipzixsjpaxswgxch.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <link rel="stylesheet" href="./style.css?v=8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data:; connect-src 'self' https://icsfipzixsjpaxswgxch.supabase.co wss://icsfipzixsjpaxswgxch.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <link rel="stylesheet" href="./style.css?v=9">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js" integrity="sha384-uteMfOloLDGt042uDz+xHGF3ym63/WQ6rFq7murQRG8Ih7QrXGEGNtWd8688sb4O" crossorigin="anonymous" defer></script>
-  <script src="./cloud-config.js?v=8" defer></script>
-  <script src="./demo.js?v=8" defer></script>
-  <script src="./cloud.js?v=8" defer></script>
-  <script src="./parks.js?v=8" defer></script>
-  <script src="./features.js?v=8" defer></script>
-  <script src="./app.js?v=8" defer></script>
+  <script src="./cloud-config.js?v=9" defer></script>
+  <script src="./demo.js?v=9" defer></script>
+  <script src="./cloud.js?v=9" defer></script>
+  <script src="./parks.js?v=9" defer></script>
+  <script src="./features.js?v=9" defer></script>
+  <script src="./family.js?v=9" defer></script>
+  <script src="./app.js?v=9" defer></script>
 </head>
 <body>
   <svg class="symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -47,6 +48,7 @@
         <p class="nav-label">我的空间</p>
         <a href="#profile" data-page="profile"><svg aria-hidden="true"><use href="#i-home"/></svg>宠物档案</a>
         <a href="#timeline" data-page="timeline"><svg aria-hidden="true"><use href="#i-clock"/></svg>成长时间线</a>
+        <a href="#care" data-page="care"><svg aria-hidden="true"><use href="#i-heart"/></svg>家庭照护</a>
         <a href="#community" data-page="community"><svg aria-hidden="true"><use href="#i-users"/></svg>同城社区</a>
       </nav>
       <div class="side-note" id="account-slot" aria-label="账号"></div>

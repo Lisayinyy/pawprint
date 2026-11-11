@@ -77,6 +77,40 @@ window.pawCloud ??= {
   saveOutcome: (postId, replyId, outcome) => checked(client.rpc('paw_save_outcome', {
     p_post: postId, p_reply: replyId, p_outcome: outcome,
   })),
+  careCircles: () => checked(client.from('paw_care_circles').select('id,owner_id,pet_name').order('pet_name').order('id')),
+  createCare: pet => checked(client.from('paw_care_circles')
+    .upsert({id: pet.id, pet_name: pet.name}, {onConflict: 'id', ignoreDuplicates: true})),
+  careMembers: circleId => checked(client.from('paw_care_members').select('user_id,display_name')
+    .eq('circle_id', circleId).eq('active', true).order('display_name')),
+  careEvents: circleId => checked(client.from('paw_care_events').select('id,author_id,display_name,kind,detail,happened_at')
+    .eq('circle_id', circleId).order('happened_at', {ascending: false}).order('created_at', {ascending: false}).order('id').limit(50)),
+  addCareEvent: async event => {
+    const table = client.from('paw_care_events');
+    const [inserted] = await checked(table.upsert(event, {onConflict: 'id', ignoreDuplicates: true}).select('id'));
+    if (inserted) return;
+    const saved = await checked(table.select('circle_id,kind,detail,happened_at').eq('id', event.id).single());
+    if (saved.circle_id !== event.circle_id || saved.kind !== event.kind || saved.detail !== event.detail ||
+        new Date(saved.happened_at).valueOf() !== new Date(event.happened_at).valueOf()) {
+      throw new Error('A different version of the care record was already saved');
+    }
+  },
+  issueCareInvite: (circleId, code) => checked(client.rpc('paw_issue_care_invite', {p_circle: circleId, p_code: code})),
+  cancelCareInvite: circleId => checked(client.rpc('paw_cancel_care_invite', {p_circle: circleId})),
+  acceptCareInvite: code => checked(client.rpc('paw_accept_care_invite', {p_code: code})),
+  removeCareMember: (circleId, memberId) => checked(client.from('paw_care_members').update({active: false})
+    .eq('circle_id', circleId).eq('user_id', memberId).select('user_id').single()),
+  watchCare: (userId, circleId, refresh) => {
+    const channel = client.channel(`family:${crypto.randomUUID()}`);
+    const watch = (table, filter, event = '*') =>
+      channel.on('postgres_changes', {event, schema: 'public', table, filter}, refresh);
+    watch('paw_care_members', `user_id=eq.${userId}`);
+    if (circleId) {
+      watch('paw_care_members', `circle_id=eq.${circleId}`);
+      watch('paw_care_events', `circle_id=eq.${circleId}`, 'INSERT');
+    }
+    channel.subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });
+    return () => void client.removeChannel(channel);
+  },
   importPets: pets => checked(client.from('paw_pets').upsert(pets, {onConflict: 'id', ignoreDuplicates: true})),
   importRecords: records => checked(client.from('paw_records').upsert(records, {onConflict: 'id', ignoreDuplicates: true})),
   posts: async (region, topic, cursor, userId, tag) => {

@@ -49,13 +49,18 @@ if (new URLSearchParams(location.search).get('demo') === '1') {
     ],
     likes: [],
     bookmarks: [],
+    careCircles: [{id: petId, owner_id: user.id, pet_name: '麻糬'}],
+    careEvents: [
+      {id: 'preview-care-walk', circle_id: petId, author_id: 'preview-family', display_name: '家人小林', kind: 'walk', detail: '出门散步 20 分钟', happened_at: ago(0)},
+      {id: 'preview-care-meal', circle_id: petId, author_id: user.id, display_name: '体验访客', kind: 'meal', detail: '晚餐 45 克', happened_at: ago(1)},
+    ],
   };
 
   let data = initial;
   try {
     const saved = JSON.parse(sessionStorage.getItem(storageKey));
     if (saved?.profile?.id === user.id && ['pets', 'records', 'posts', 'replies', 'likes'].every(key => Array.isArray(saved[key]))) {
-      data = {...saved, bookmarks: saved.bookmarks ?? []};
+      data = {...initial, ...saved, bookmarks: saved.bookmarks ?? []};
       for (const post of initial.posts) {
         const previous = data.posts.find(item => item.id === post.id);
         if (!previous) data.posts.push(post);
@@ -116,6 +121,16 @@ if (new URLSearchParams(location.search).get('demo') === '1') {
       const post = data.posts.find(item => item.id === postId);
       upsert(data.posts, {...post, outcome, outcome_reply: replyId});
     },
+    careCircles: async () => data.careCircles.slice(),
+    createCare: async pet => upsert(data.careCircles, {id: pet.id, owner_id: user.id, pet_name: pet.name}),
+    careMembers: async id => id === petId && !data.previewFamilyRemoved ? [{user_id: 'preview-family', display_name: '家人小林'}] : [],
+    careEvents: async id => data.careEvents.filter(item => item.circle_id === id)
+      .sort((a, b) => b.happened_at.localeCompare(a.happened_at)).slice(0, 50),
+    addCareEvent: async item => upsert(data.careEvents, {...item, author_id: user.id}),
+    issueCareInvite: async () => {},
+    cancelCareInvite: async () => {},
+    removeCareMember: async () => { data.previewFamilyRemoved = true; persist(); },
+    watchCare: () => () => {},
     posts: async (region, topic, cursor, _userId, tag) => {
       const matching = data.posts.filter(post => post.region === region &&
         (tag === 'all' || post.route?.tag === tag) &&

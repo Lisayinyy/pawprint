@@ -23,6 +23,7 @@ const walks = {
 const legacyKey = 'pawprint.demo.v1';
 const cloud = window.pawCloud;
 const demoMode = Boolean(cloud.demo);
+captureCareInvite();
 const providerNames = {github: 'GitHub', google: 'Google'};
 
 const main = document.querySelector('#main');
@@ -153,6 +154,7 @@ async function loadAccount(session) {
   ++requestNumber;
   if ((user?.id ?? null) !== (session?.user.id ?? null)) drafts.clear();
   lastRecord = null;
+  resetCare();
   user = session?.user ?? null;
   account = null;
   accountError = '';
@@ -178,6 +180,7 @@ async function loadAccount(session) {
       loadingAccount = false;
       render();
       if (account && !accountError && location.hash === '#community') void loadFeed();
+      if (account && !accountError && location.hash === '#care') void refreshCare();
     }
   }
 }
@@ -518,7 +521,8 @@ function accountPage() {
   const localFile = location.protocol === 'file:';
   const fromCommunity = location.hash === '#community';
   const providers = cloud.providers.map(provider => `<button class="button outline" data-action="sign-in" data-provider="${provider}"${signInPending ? ' disabled' : ''}>${signInPending ? '正在前往 GitHub…' : `使用 ${providerNames[provider]} 登录`}</button>`).join('');
-  const destination = fromCommunity ? 'community' : location.hash === '#timeline' ? 'timeline' : 'profile';
+  const route = location.hash.slice(1);
+  const destination = Object.hasOwn(pages, route) ? route : 'profile';
   const previewBase = localFile ? 'https://lisayinyy.github.io/pawprint/' : './';
   const previewLink = `<a class="button primary" href="${previewBase}?demo=1#${destination}">免登录体验${icon('arrow')}</a>`;
   const accountAction = localFile ? '<a class="button outline" href="https://lisayinyy.github.io/pawprint/">打开网页版</a>'
@@ -527,7 +531,7 @@ function accountPage() {
   return `<section class="hero login-panel" aria-labelledby="login-title">
     <div class="hero-copy">
       <span class="pill hero-label">${icon('paw')} PAWPRINT JOURNAL</span>
-      <h1 id="login-title">${user && !status ? '设置个人资料' : fromCommunity ? '加入同城社区' : '记录每一步成长'}</h1>
+      <h1 id="login-title">${user && !status ? '设置个人资料' : destination === 'care' ? '加入家庭照护' : fromCommunity ? '加入同城社区' : '记录每一步成长'}</h1>
       <p class="login-intro">${localFile ? '打开网页版登录并同步你的记录。' : (status || (user ? '设置昵称，选一个地区，就可以开始记录和交流。' : fromCommunity ? '和同区宠友聊日常、问问题，一起发现新的散步路线。' : '记录宠物的健康和日常，也认识附近的宠友。'))}</p>
       <div class="hero-actions">${previewLink}${accountAction}</div>
       <p class="login-hint">免登录可试记护理、下载看诊摘要和体验路线复走。登录后，你的档案会跨设备同步。</p>
@@ -537,7 +541,7 @@ function accountPage() {
   </section>`;
 }
 
-const pages = {profile, timeline, community};
+const pages = {profile, timeline, care: carePage, community};
 function render({focus = false} = {}) {
   const focused = document.activeElement;
   const previousControl = focused?.closest('button');
@@ -813,6 +817,10 @@ main.addEventListener('change', event => {
     void loadFeed().then(() => main.querySelector('[name="routeFilter"]')?.focus({preventScroll: true}));
     return;
   }
+  if (event.target.id === 'care-circle') {
+    void refreshCare(event.target.value);
+    return;
+  }
   if (event.target.id !== 'active-pet') return;
   state.activePet = event.target.value;
   timelineFilter = 'all';
@@ -837,6 +845,29 @@ document.addEventListener('click', event => {
   if (action === 'account') openAccount(control);
   if (action === 'import-local') openImport(control);
   if (!account) return;
+
+  if (action === 'care-create') openCareCreate(control);
+  if (action === 'care-invite') openCareInvite(control);
+  if (action === 'care-join') openCareJoin(control);
+  if (action === 'care-record') openCareRecord(control, id);
+  if (action === 'care-remove') openCareRemove(control, id);
+  if (action === 'care-refresh') void refreshCare();
+  if (action === 'care-dismiss') {
+    forgetCareInvite();
+    render();
+  }
+  if (action === 'care-copy') {
+    const input = control.form.elements.inviteLink;
+    input.select();
+    if (navigator.clipboard) navigator.clipboard.writeText(input.value).then(
+      () => toast('已复制邀请链接'), () => toast('请复制选中的邀请链接'));
+  }
+  if (action === 'care-cancel-invite') void write(async expected => {
+    await cloud.cancelCareInvite(control.form.elements.circleId.value);
+    if (expected !== sessionNumber) return;
+    dialog.close();
+    toast('已撤销未使用的邀请');
+  }, control);
 
   if (topic && topicFilter !== topic) {
     topicFilter = topic;
@@ -966,6 +997,10 @@ async function handleSubmit(form, expected) {
   const values = Object.fromEntries(new FormData(form));
   const id = form.dataset.id ||= crypto.randomUUID();
   saveDraft(form);
+  if (values.mode.startsWith('care-')) {
+    await submitCare(form, values, id, expected);
+    return;
+  }
   if (values.mode === 'account') {
     const creating = !account;
     const profile = await cloud.saveProfile(user.id, {display_name: values.displayName.trim(), region: values.region}, creating);
@@ -981,6 +1016,7 @@ async function handleSubmit(form, expected) {
     dialog.close();
     render();
     if (location.hash === '#community') void loadFeed();
+    if (location.hash === '#care') void refreshCare();
     toast('账号设置已保存');
     return;
   }
@@ -1110,8 +1146,14 @@ window.addEventListener('pageshow', event => {
   }
 });
 window.addEventListener('hashchange', () => {
+  captureCareInvite();
+  if (location.hash !== '#care') stopCareWatch();
   render({focus: true});
   if (account && location.hash === '#community') void loadFeed();
+  if (account && location.hash === '#care') void refreshCare();
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && location.hash === '#care') void refreshCare();
 });
 
 if (cloud.ready) {
@@ -1120,6 +1162,9 @@ if (cloud.ready) {
     void loadAccount(session);
   });
   void startSession();
+  if (!demoMode) setInterval(() => {
+    if (!document.hidden && location.hash === '#care') void refreshCare();
+  }, 12000);
   setInterval(() => {
     if (demoMode || !account || document.hidden || location.hash !== '#community' || loadingFeed || saving) return;
     if (dialog.open) {
