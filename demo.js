@@ -98,7 +98,11 @@ if (new URLSearchParams(location.search).get('demo') === '1') {
     },
     pets: async () => data.pets.slice(),
     records: async () => data.records.slice().sort((a, b) => b.record_date.localeCompare(a.record_date)),
-    savePet: async pet => upsert(data.pets, pet),
+    savePet: async pet => {
+      const circle = data.careCircles.find(item => item.id === pet.id);
+      if (circle) circle.pet_name = pet.name;
+      return upsert(data.pets, pet);
+    },
     addRecord: async record => upsert(data.records, record),
     editRecord: async (id, fields) => upsert(data.records, {...data.records.find(item => item.id === id), ...fields}),
     deleteRecord: async id => {
