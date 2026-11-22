@@ -6,6 +6,12 @@ const careClock = new Intl.DateTimeFormat('zh-HK', {
   timeZone: 'Asia/Hong_Kong', year: 'numeric', month: 'numeric', day: 'numeric',
   hour: '2-digit', minute: '2-digit', hour12: false,
 });
+// The database accepts any timestamp up to now, including '-infinity' and BC dates that Date cannot parse.
+// Intl throws on those, and one such row must not take the whole shared journal down.
+const careTime = value => {
+  const date = new Date(value);
+  return Number.isFinite(date.valueOf()) ? careClock.format(date) : '时间不详';
+};
 const emptyFamily = () => ({circles: [], events: [], members: [], id: null, error: '', ready: false});
 let family = emptyFamily();
 let familyRequest = 0;
@@ -104,7 +110,7 @@ function carePage() {
         `<button class="button outline" data-action="care-record" data-id="${key}">${key === 'walk' ? icon('pin') : key === 'medication' ? icon('cross') : icon('paw')}记${label}</button>`).join('')}</div>
       ${family.events.length ? `<ol class="care-events">${family.events.map(event => `<li>
         <div><strong>${careKinds[event.kind]}</strong> <span>${escapeHtml(event.detail)}</span></div>
-        <p>${escapeHtml(event.display_name)}${event.author_id === user.id ? '（我）' : ''} · <time datetime="${escapeHtml(event.happened_at)}">${careClock.format(new Date(event.happened_at))}</time></p>
+        <p>${escapeHtml(event.display_name)}${event.author_id === user.id ? '（我）' : ''} · <time datetime="${escapeHtml(event.happened_at)}">${careTime(event.happened_at)}</time></p>
       </li>`).join('')}</ol>` : '<p class="muted">记录一次照护，家人打开这里就能看到。</p>'}
       ${family.events.length === 50 ? '<p class="muted">显示最近 50 条记录。</p>' : ''}
     </section>` : ''}
