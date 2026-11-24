@@ -176,3 +176,28 @@ test('family care is visible only to the owner and members who accepted a one-ti
     [annPet, ben]), denied);
   assert.equal((await as(ann, 'select id from paw_care_events')).length, 2);
 });
+
+test('length limits count padding, and care times must be real dates', async () => {
+  const pad = ' '.repeat(5000);
+  const sizeLimit = /_size"|violates check constraint/;
+  await assert.rejects(as(ben, `insert into paw_posts (id, display_name, region, topic, body)
+    values ($1, 'Ben', '港岛', 'daily', $2)`, [uuid(60), pad + 'a']), sizeLimit);
+  await assert.rejects(as(ben, `insert into paw_comments (id, post_id, display_name, body)
+    values ($1, $2, 'Ben', $3)`, [uuid(60), uuid(31), 'a' + pad]), sizeLimit);
+  await assert.rejects(as(ben, `insert into paw_posts (id, display_name, region, topic, body, route)
+    values ($1, 'Ben', '港岛', 'walk', 'w', $2)`, [uuid(60), JSON.stringify({ name: 'n', start: 's' + pad, finish: 'f',
+    minutes: 20, slot: 'morning', tag: 'quiet', date: '2026-11-01' })]), sizeLimit);
+  await assert.rejects(as(ben, `update paw_profiles set display_name = $2 where id = $1`, [ben, pad + 'Ben']), sizeLimit);
+  await assert.rejects(as(ben, `update paw_profiles set saved_walks = array_fill('港岛'::text, array[100]) where id = $1`,
+    [ben]), sizeLimit);
+  await assert.rejects(as(ben, `update paw_pets set name = $2 where id = $1`, [benPet, pad + 'x']), sizeLimit);
+  await assert.rejects(as(ann, `insert into paw_records (id, pet_id, type, value, note, record_date)
+    values ($1, $2, 'moment', $3, '', '2026-11-02')`, [uuid(60), annPet, 'x' + pad]), sizeLimit);
+
+  const event = `insert into paw_care_events (id, circle_id, display_name, kind, detail, happened_at)
+    values ($1, $2, 'Ann', 'meal', $3, $4)`;
+  await assert.rejects(as(ann, event, [uuid(61), annPet, 'x' + pad, new Date().toISOString()]), sizeLimit);
+  await assert.rejects(as(ann, event, [uuid(61), annPet, 'x', '-infinity']), /happened_at_range/);
+  await assert.rejects(as(ann, event, [uuid(61), annPet, 'x', '4000-01-01 BC']), /happened_at_range/);
+  await as(ann, event, [uuid(61), annPet, '晚餐 45 克', new Date(Date.now() - 86_400_000).toISOString()]);
+});
