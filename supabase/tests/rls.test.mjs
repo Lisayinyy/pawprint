@@ -1,6 +1,8 @@
 // Applies every migration to an in-memory Postgres (PGlite) behind a minimal stand-in for Supabase's
 // `auth` schema, roles and default grants, then checks who can read and write whose rows.
 // Statements name their columns the way PostgREST does, so column-level grants are exercised too.
+// invariants.sql holds the schema-wide checks (one row per violation); it is run here after the migrations
+// and again after deliberately breaking the schema, to show each check can fail.
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
@@ -12,29 +14,49 @@ const [ann, ben, cat] = [uuid(1), uuid(2), uuid(3)];
 const [annPet, benPet] = [uuid(11), uuid(12)];
 const code = 'ab'.repeat(32);
 const denied = /permission denied|row-level security/;
+const invariants = await readFile(new URL('invariants.sql', import.meta.url), 'utf8');
 let db;
 
-/** Runs one statement the way a signed-in (or anonymous) API request would. */
+/** Runs one statement the way a signed-in (or anonymous) API request would: PostgREST switches to the
+ *  role and puts the verified token's claims into `request.jwt.claims` for the transaction. */
 function as(user, sql, params = []) {
   return db.transaction(async tx => {
-    await tx.query(`select set_config('request.jwt.claim.sub', $1, true)`, [user ?? '']);
+    await tx.query(`select set_config('request.jwt.claims', $1, true)`, [user ? JSON.stringify({ sub: user, role: 'authenticated' }) : '']);
     await tx.exec(`set local role ${user ? 'authenticated' : 'anon'}`);
     return (await tx.query(sql, params)).rows;
   });
 }
 
+/** Applies `ddl`, lists the invariant violations it causes, and rolls everything back. */
+function violationsAfter(ddl) {
+  return db.transaction(async tx => {
+    await tx.exec(ddl);
+    const { rows } = await tx.query(invariants);
+    await tx.rollback();
+    return [...new Set(rows.map(row => `${row.problem} ${row.object}`))];
+  });
+}
+
 before(async () => {
   db = new PGlite();
+  // Roles, auth.uid() and default privileges as a Supabase project has them: supabase/postgres
+  // (migrations/db/init-scripts/00000000000000-initial-schema.sql) and supabase/auth
+  // (migrations/20220224000811_update_auth_functions.up.sql).
   await db.exec(`
-    create role anon nologin;
-    create role authenticated nologin;
+    create role anon nologin noinherit;
+    create role authenticated nologin noinherit;
+    create role service_role nologin noinherit bypassrls;
     create schema auth;
     create table auth.users (id uuid primary key);
-    create function auth.uid() returns uuid language sql stable as
-      $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-    grant usage on schema auth, public to anon, authenticated;
-    alter default privileges in schema public grant all on tables to anon, authenticated;
-    alter default privileges in schema public grant all on functions to anon, authenticated;
+    create function auth.uid() returns uuid language sql stable as $$
+      select coalesce(
+        nullif(current_setting('request.jwt.claim.sub', true), ''),
+        (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+      )::uuid $$;
+    grant usage on schema auth, public to anon, authenticated, service_role;
+    alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+    alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+    alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
     create publication supabase_realtime;
   `);
   for (const file of (await readdir(migrations)).sort()) {
@@ -200,4 +222,115 @@ test('length limits count padding, and care times must be real dates', async () 
   await assert.rejects(as(ann, event, [uuid(61), annPet, 'x', '-infinity']), /happened_at_range/);
   await assert.rejects(as(ann, event, [uuid(61), annPet, 'x', '4000-01-01 BC']), /happened_at_range/);
   await as(ann, event, [uuid(61), annPet, '晚餐 45 克', new Date(Date.now() - 86_400_000).toISOString()]);
+});
+
+test('upserts in the shape the app sends them only ever touch the caller\'s own row', async () => {
+  // cloud.js saves a pet and a new profile with a plain upsert, which PostgREST turns into
+  // INSERT ... ON CONFLICT (id) DO UPDATE SET <every sent column> = EXCLUDED.<column>.
+  const savePet = `insert into paw_pets (id, name, kind, breed) values ($1, $2, 'cat', '')
+    on conflict (id) do update set id = excluded.id, name = excluded.name, kind = excluded.kind, breed = excluded.breed
+    returning owner_id, name`;
+  const saveProfile = `insert into paw_profiles (id, display_name, region) values ($1, $2, '九龙')
+    on conflict (id) do update set id = excluded.id, display_name = excluded.display_name, region = excluded.region
+    returning id, display_name`;
+  const annsPet = await as(ann, 'select name, kind from paw_pets where id = $1', [annPet]);
+
+  assert.deepEqual(await as(ben, savePet, [benPet, '年糕糕']), [{ owner_id: ben, name: '年糕糕' }]);
+  await assert.rejects(as(ben, savePet, [annPet, 'taken']), denied);
+  assert.deepEqual(await as(ann, 'select name, kind from paw_pets where id = $1', [annPet]), annsPet);
+
+  assert.deepEqual(await as(cat, saveProfile, [cat, 'Cat 2']), [{ id: cat, display_name: 'Cat 2' }]);
+  await assert.rejects(as(cat, saveProfile, [ann, 'taken']), denied);
+  assert.equal((await as(ann, 'select display_name from paw_profiles'))[0].display_name, 'Ann');
+});
+
+test('schema-wide invariants hold after all migrations', async () => {
+  assert.deepEqual((await db.query(invariants)).rows, []);
+});
+
+test('each invariant reports the schema change it is there to catch', async () => {
+  const broken = [
+    ['alter table public.paw_likes disable row level security', ['rls_disabled public.paw_likes']],
+    [`drop policy "Read own bookmarks" on public.paw_bookmarks;
+      drop policy "Bookmark visible routes" on public.paw_bookmarks;
+      drop policy "Delete own bookmarks" on public.paw_bookmarks`, ['rls_without_policy public.paw_bookmarks']],
+    // A new table that forgets `enable row level security` and `revoke all` keeps Supabase's default grants.
+    ['create table public.paw_new (id int)', ['anon_table_privilege public.paw_new',
+      'authenticated_table_privilege public.paw_new', 'rls_disabled public.paw_new']],
+    ['create policy "Everyone" on public.paw_posts for select using (true)',
+      ['policy_not_limited_to_authenticated public.paw_posts']],
+    ['grant select (id) on public.paw_posts to anon', ['anon_table_privilege public.paw_posts']],
+    ['grant usage on schema paw_private to anon', ['anon_schema_privilege paw_private']],
+    ['grant truncate on public.paw_posts to authenticated', ['authenticated_table_privilege public.paw_posts']],
+    // A new function that forgets `set search_path` and `revoke ... from public, anon`.
+    ['create function public.paw_new() returns int language sql as $$ select 1 $$',
+      ['anon_function_privilege public.paw_new()', 'function_search_path_mutable public.paw_new()']],
+    [`create function public.paw_new() returns int language sql security definer set search_path = '' as $$ select 1 $$;
+      revoke all on function public.paw_new() from public, anon`, ['security_definer_in_api_schema public.paw_new()']],
+  ];
+  for (const [ddl, expected] of broken) assert.deepEqual(await violationsAfter(ddl), expected, ddl);
+  assert.deepEqual((await db.query(invariants)).rows, [], 'the changes above were rolled back');
+});
+
+test('signed-in users hold exactly the privileges the app needs', async () => {
+  // The whole grant surface in one place. A migration that widens or narrows a grant has to change this
+  // list too. Row-level limits on top of these grants are what the tests above exercise.
+  const { rows: tables } = await db.query(`
+    select c.relname as "table", a.privilege_type as privilege, null as columns
+      from pg_class c, aclexplode(c.relacl) a
+      where a.grantee = 'authenticated'::regrole and c.relkind = 'r'
+        and c.relnamespace in ('public'::regnamespace, 'paw_private'::regnamespace)
+    union all
+    select c.relname, a.privilege_type, string_agg(col.attname, ', ' order by col.attnum)
+      from pg_class c join pg_attribute col on col.attrelid = c.oid, aclexplode(col.attacl) a
+      where a.grantee = 'authenticated'::regrole
+        and c.relnamespace in ('public'::regnamespace, 'paw_private'::regnamespace)
+      group by 1, 2
+    order by 1, 2`);
+  assert.deepEqual(tables.map(row => `${row.table}: ${row.privilege}${row.columns ? ` (${row.columns})` : ''}`), [
+    'paw_bookmarks: DELETE',
+    'paw_bookmarks: INSERT',
+    'paw_bookmarks: SELECT',
+    'paw_care_circles: INSERT (id, pet_name)',
+    'paw_care_circles: SELECT',
+    'paw_care_events: INSERT (id, circle_id, display_name, kind, detail, happened_at)',
+    'paw_care_events: SELECT',
+    'paw_care_members: SELECT',
+    'paw_care_members: UPDATE (active)',
+    'paw_comments: INSERT (id, post_id, display_name, body, walk_date, walk_slot)',
+    'paw_comments: SELECT',
+    'paw_likes: DELETE',
+    'paw_likes: INSERT',
+    'paw_likes: SELECT',
+    'paw_pets: INSERT (id, name, kind, breed)',
+    'paw_pets: SELECT',
+    'paw_pets: UPDATE',
+    'paw_posts: INSERT (id, display_name, region, topic, body, route)',
+    'paw_posts: SELECT',
+    'paw_posts: UPDATE (outcome, outcome_reply)',
+    'paw_profiles: INSERT',
+    'paw_profiles: SELECT',
+    'paw_profiles: UPDATE',
+    'paw_records: DELETE',
+    'paw_records: INSERT (id, pet_id, type, value, note, record_date, next_date)',
+    'paw_records: SELECT',
+    'paw_records: UPDATE (value, note, record_date, next_date)',
+  ]);
+
+  const { rows: functions } = await db.query(`
+    select p.oid::regprocedure::text as name, p.prosecdef as definer from pg_proc p
+      where p.pronamespace in ('public'::regnamespace, 'paw_private'::regnamespace)
+        and has_function_privilege('authenticated', p.oid, 'EXECUTE')
+      order by 1`);
+  assert.deepEqual(functions.map(row => `${row.name}${row.definer ? ' [security definer]' : ''}`), [
+    'paw_accept_care_invite(text)',
+    'paw_cancel_care_invite(uuid)',
+    'paw_issue_care_invite(uuid,text)',
+    'paw_log_walk(uuid,uuid,uuid,date,text,integer,text)',
+    'paw_private.accept_care_invite(text) [security definer]',
+    'paw_private.cancel_care_invite(uuid) [security definer]',
+    'paw_private.issue_care_invite(uuid,text) [security definer]',
+    'paw_save_outcome(uuid,uuid,text)',
+    'paw_validate_outcome_reply()',
+  ]);
 });
